@@ -11,6 +11,9 @@ import {
   SafeAreaView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 
 import {
   CloseIcon,
@@ -20,52 +23,73 @@ import {
   SearchIcon,
   LocationIcon,
   NotFavoriteIcon,
+  AddIcon,
+  StarIcon,
 } from '../assets';
+import { RootStackNavigationProp } from 'src/navigation/navigation';
 
 const userAvatar = 'https://randomuser.me/api/portraits/men/1.jpg';
 const tripImage =
   'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=400&q=80';
 
-const categories = ['Adventure', 'Beach', 'Mountain'];
-const lastSearch = [
-  'Mountain',
-  'Sky View',
-  'River Side',
-  'Hotel',
-  'Armandina Hotel',
-];
-
-const recentTrips = [
-  {
-    id: '1',
-    title: 'Moraine Lake',
-    location: 'Canada',
-    price: '$83',
-    rating: 4.5,
-    image: tripImage,
-  },
-  {
-    id: '2',
-    title: 'Moraine Lake',
-    location: 'Canada',
-    price: '$83',
-    rating: 4.5,
-    image: tripImage,
-  },
-  {
-    id: '3',
-    title: 'Moraine Lake',
-    location: 'Canada',
-    price: '$83',
-    rating: 4.5,
-    image: tripImage,
-  },
-];
-
 export const HomeScreen: React.FC = () => {
+  const navigation = useNavigation<RootStackNavigationProp<'CreateTrip'>>();
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Adventure');
-  const [showList, setShowList] = useState(false);
+  const [trips, setTrips] = useState<any[]>([]);
+  const [userName, setUserName] = useState('User');
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const fetchTrips = async () => {
+        try {
+          const userStr = await AsyncStorage.getItem('loggedInUser');
+          if (!userStr) return;
+          const user = JSON.parse(userStr);
+
+          // Set user name from AsyncStorage
+          setUserName(user.name || user.fullName || user.firstName || 'User');
+
+          const tripsStr = await AsyncStorage.getItem('trips');
+          const allTrips = tripsStr ? JSON.parse(tripsStr) : {};
+          console.log('All Trips:', allTrips);
+          setTrips(allTrips[user.email] || []);
+        } catch (e) {
+          setTrips([]);
+          setUserName('User');
+        }
+      };
+      fetchTrips();
+    }, []),
+  );
+
+  const filteredTrips = trips.filter(trip =>
+    trip.tripLocation?.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    return `${month} ${day}`;
+  };
+
+  const handleAddTrip = () => {
+    navigation.navigate('CreateTrip');
+  };
+  const handleEditTrip = (trip: any) => {
+    navigation.navigate('CreateTrip', { trip });
+  };
+
+  const renderNoResults = () => (
+    <View style={styles.noResultsContainer}>
+      <Text style={styles.noResultsText}>No trips found for "{search}"</Text>
+      <Text style={styles.noResultsSubtext}>
+        Try searching with a different location name
+      </Text>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -73,7 +97,7 @@ export const HomeScreen: React.FC = () => {
         <View style={styles.header}>
           <Image source={{ uri: userAvatar }} style={styles.avatar} />
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={styles.hiText}>Hi, James</Text>
+            <Text style={styles.hiText}>Hi, {userName}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <LocationIcon />
               <Text style={styles.locationText}>Chicago, New York</Text>
@@ -89,7 +113,7 @@ export const HomeScreen: React.FC = () => {
             <SearchIcon width={20} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search"
+              placeholder="Search by location..."
               value={search}
               onChangeText={setSearch}
               placeholderTextColor="#A1A1A1"
@@ -100,104 +124,86 @@ export const HomeScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.categoryRow}>
-          {categories.map(cat => (
-            <TouchableOpacity
-              key={cat}
-              style={[
-                styles.categoryBtn,
-                selectedCategory === cat && styles.categoryBtnActive,
-              ]}
-              onPress={() => setSelectedCategory(cat)}
-            >
-              <Text
-                style={[
-                  styles.categoryText,
-                  selectedCategory === cat && styles.categoryTextActive,
-                ]}
-              >
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {trips && trips.length > 0 ? (
+          <ScrollView style={{ flex: 1 }}>
+            <Text style={styles.recentViewedLabel}>
+              {search
+                ? `Search Results (${filteredTrips.length})`
+                : 'Recent Trips'}
+            </Text>
 
-        {!showList ? (
+            {filteredTrips.length > 0 ? (
+              <FlatList
+                data={filteredTrips}
+                keyExtractor={item => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity onPress={() => handleEditTrip(item)}>
+                    <View style={styles.tripCard}>
+                      <View style={{ position: 'relative' }}>
+                        <Image
+                          source={{ uri: item.image }}
+                          style={styles.tripImage}
+                        />
+                        {/* <NotFavoriteIcon style={styles.favoriteIcon} /> */}
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.tripTitle}>
+                          {item.tripLocation || 'Trip'}
+                        </Text>
+                        <View
+                          style={{ flexDirection: 'row', alignItems: 'center' }}
+                        >
+                          <StarIcon width={14} />
+                          <Text style={styles.tripLocation}>
+                            {`${formatDate(item.startDate)} - ${formatDate(
+                              item.endDate,
+                            )}` || ''}
+                          </Text>
+                          <Text style={styles.tripRating}>
+                            {item.rating || ''}
+                          </Text>
+                        </View>
+                        <Text style={styles.tripPrice}>
+                          Budget: {item.budget ? `$${item.budget}` : ''}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.tripGoBtn}
+                        onPress={() => handleEditTrip(item)}
+                      >
+                        <NavigateIcon style={{ alignSelf: 'center' }} />
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                )}
+                scrollEnabled={false}
+                contentContainerStyle={{ paddingBottom: 100 }}
+              />
+            ) : search ? (
+              renderNoResults()
+            ) : null}
+          </ScrollView>
+        ) : (
           <View style={styles.centered}>
             <TouchableOpacity
               style={styles.createBtn}
-              onPress={() => setShowList(true)}
+              onPress={() => handleAddTrip()}
             >
-              <Icon name="add" size={22} color="#fff" />
+              <AddIcon />
               <Text style={styles.createBtnText}>Create a New Trip</Text>
             </TouchableOpacity>
           </View>
-        ) : (
-          <ScrollView style={{ flex: 1 }}>
-            <View style={styles.lastSearchRow}>
-              <Text style={styles.lastSearchLabel}>Last Search</Text>
-              <TouchableOpacity>
-                <Text style={styles.clearAll}>Clear all</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.lastSearchChips}>
-              {lastSearch.map(item => (
-                <View key={item} style={styles.lastSearchChip}>
-                  <Text style={styles.lastSearchChipText}>{item}</Text>
-                  <CloseIcon width={10} style={{ marginLeft: 4 }} />
-                </View>
-              ))}
-            </View>
+        )}
 
-            <Text style={styles.recentViewedLabel}>Recent Viewed</Text>
-            <FlatList
-              data={recentTrips}
-              keyExtractor={item => item.id}
-              renderItem={({ item }) => (
-                <View style={styles.tripCard}>
-                  <View style={{ position: 'relative' }}>
-                    <Image
-                      source={{ uri: item.image }}
-                      style={styles.tripImage}
-                    />
-                    <NotFavoriteIcon style={styles.favoriteIcon} />
-                  </View>
-
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={styles.tripTitle}>{item.title}</Text>
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        marginTop: 2,
-                      }}
-                    >
-                      <Icon name="location-sharp" size={13} color="#A1A1A1" />
-                      <Text style={styles.tripLocation}>{item.location}</Text>
-                      <Icon
-                        name="star"
-                        size={13}
-                        color="#FFD700"
-                        style={{ marginLeft: 8 }}
-                      />
-                      <Text style={styles.tripRating}>{item.rating}</Text>
-                    </View>
-                    <Text style={styles.tripPrice}>
-                      {item.price}
-                      <Text style={{ color: '#A1A1A1', fontSize: 13 }}>
-                        /Person
-                      </Text>
-                    </Text>
-                  </View>
-                  <TouchableOpacity style={styles.tripGoBtn}>
-                    <NavigateIcon style={{ alignSelf: 'center' }} />
-                  </TouchableOpacity>
-                </View>
-              )}
-              scrollEnabled={false}
-              contentContainerStyle={{ paddingBottom: 20 }}
-            />
-          </ScrollView>
+        {trips.length > 0 && (
+          <TouchableOpacity
+            style={styles.floatingBtn}
+            onPress={() => {
+              navigation.navigate('CreateTrip');
+            }}
+          >
+            <AddIcon />
+          </TouchableOpacity>
         )}
       </View>
     </SafeAreaView>
@@ -396,6 +402,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginTop: 4,
   },
+  floatingBtn: {
+    position: 'absolute',
+    bottom: 40,
+    right: 20,
+    backgroundColor: '#85CC16',
+    borderRadius: 30,
+    width: 56,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+  },
   tripGoBtn: {
     backgroundColor: '#85CC16',
     borderRadius: 30,
@@ -404,5 +422,24 @@ const styles = StyleSheet.create({
     width: 50,
     paddingTop: 17,
     marginLeft: 8,
+  },
+  noResultsContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    marginTop: 40,
+  },
+  noResultsText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#222',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  noResultsSubtext: {
+    fontSize: 14,
+    color: '#A1A1A1',
+    textAlign: 'center',
   },
 });
