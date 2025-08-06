@@ -5,6 +5,7 @@ export type RootStackParamList = {
   Login: undefined;
   Signup: undefined;
   Home: undefined;
+  CreateTrip: { trip?: any } | undefined;
 };
 
 export type RootStackNavigationProp<
@@ -17,7 +18,6 @@ export type RootStackRouteProp<T extends keyof RootStackParamList = 'Login'> =
 
   export type HomeStackParamList = {
   Home: undefined;
-  Article: { article: Article };
 };
 
 export type HomeStackNavigationProp<

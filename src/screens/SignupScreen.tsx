@@ -9,12 +9,12 @@ import {
   SafeAreaView,
   Alert,
   ScrollView,
+  ToastAndroid,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
-
 
 import { RootStackNavigationProp } from '../navigation/navigation';
-import { ArrowBack } from '../assets';
+import { ArrowBack, PasswordHide, PasswordShow } from '../assets';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const SignupScreen: React.FC = () => {
   const navigation = useNavigation<RootStackNavigationProp<'Signup'>>();
@@ -23,8 +23,10 @@ export const SignupScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     if (!firstName || !lastName || !email || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -33,7 +35,25 @@ export const SignupScreen: React.FC = () => {
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
-    navigation.navigate('Login');
+    try {
+      const usersStr = await AsyncStorage.getItem('users');
+      let users = usersStr ? JSON.parse(usersStr) : [];
+      const userExists = users.some((u: any) => u.email === email);
+      if (userExists) {
+        Alert.alert('Error', 'User already exists with this email');
+        return;
+      }
+      users.push({ firstName, lastName, email, password });
+      const user = users.find(
+        (u: any) => u.email === email && u.password === password,
+      );
+      await AsyncStorage.setItem('users', JSON.stringify(users));
+      await AsyncStorage.setItem('loggedInUser', JSON.stringify(user));
+      ToastAndroid.show('Account created successfully!', ToastAndroid.SHORT);
+      navigation.replace('Home');
+    } catch (e) {
+      Alert.alert('Error', 'Failed to sign up. Please try again.');
+    }
   };
 
   return (
@@ -43,7 +63,10 @@ export const SignupScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.replace('Login')}
+          >
             <ArrowBack width={35} height={40} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Sign Up</Text>
@@ -101,10 +124,13 @@ export const SignupScreen: React.FC = () => {
                 placeholderTextColor="#999"
                 value={password}
                 onChangeText={setPassword}
-                secureTextEntry={true}
+                secureTextEntry={!showPassword}
               />
-              <TouchableOpacity style={styles.eyeIcon}>
-                <Icon name="eye-off" size={20} color="#999" />
+              <TouchableOpacity
+                style={styles.eyeIcon}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <PasswordHide /> : <PasswordShow />}
               </TouchableOpacity>
             </View>
           </View>
@@ -114,14 +140,17 @@ export const SignupScreen: React.FC = () => {
             <View style={styles.passwordInputContainer}>
               <TextInput
                 style={styles.passwordInput}
-                placeholder="Enter your Password"
+                placeholder="Enter Confirm Password"
                 placeholderTextColor="#999"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                secureTextEntry={true}
+                secureTextEntry={!showConfirmPassword}
               />
-              <TouchableOpacity style={styles.eyeIcon}>
-                <Icon name="eye-off" size={20} color="#999" />
+              <TouchableOpacity
+                style={styles.eyeIcon}
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                {showConfirmPassword ? <PasswordHide /> : <PasswordShow />}
               </TouchableOpacity>
             </View>
           </View>
@@ -155,7 +184,7 @@ const styles = StyleSheet.create({
     marginRight: 20,
   },
   headerTitle: {
-     marginEnd:70,
+    marginEnd: 70,
     flex: 1,
     textAlign: 'center',
     fontSize: 18,
@@ -164,7 +193,7 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     paddingHorizontal: 20,
-        marginTop: 10,
+    marginTop: 10,
     flex: 1,
   },
   signupTitleContainer: {
@@ -211,6 +240,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 12,
     fontSize: 16,
+    color: '#000000',
   },
   eyeIcon: {
     paddingHorizontal: 15,

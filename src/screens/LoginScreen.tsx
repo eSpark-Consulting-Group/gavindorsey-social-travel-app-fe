@@ -1,5 +1,5 @@
 import { useNavigation } from '@react-navigation/native';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,13 @@ import {
   SafeAreaView,
   Alert,
   ScrollView,
+  BackHandler,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
 
 import { RootStackNavigationProp } from '../navigation/navigation';
-import { ArrowBack } from '../assets';
+import { ArrowBack, CheckIcon, PasswordHide, PasswordShow } from '../assets';
 import { LoginSuccessPopup } from './LoginSuccessPopup';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<RootStackNavigationProp<'Login'>>();
@@ -22,31 +23,50 @@ export const LoginScreen: React.FC = () => {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = () => {
-    // if (!email || !password) {
-    //   Alert.alert('Error', 'Please fill in all fields');
-    //   return;
-    // }
-    
-    setShowSuccessPopup(true);
+  useEffect(() => {
+    const checkLoggedIn = async () => {
+      const userStr = await AsyncStorage.getItem('isUserLoggedIn');
+      if (userStr === 'true') {
+        navigation.replace('Home');
+      }
+    };
+    checkLoggedIn();
+  }, []);
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+    try {
+      const usersStr = await AsyncStorage.getItem('users');
+      const users = usersStr ? JSON.parse(usersStr) : [];
+      const user = users.find(
+        (u: any) => u.email === email && u.password === password,
+      );
+      if (!user) {
+        Alert.alert('Error', 'Invalid email or password');
+        return;
+      }
+      if (rememberMe) {
+        await AsyncStorage.setItem('isUserLoggedIn', 'true');
+      }
+      await AsyncStorage.setItem('loggedInUser', JSON.stringify(user));
+      setShowSuccessPopup(true);
+    } catch (e) {
+      Alert.alert('Error', 'Failed to login. Please try again.');
+    }
   };
 
   const handleSuccessContinue = () => {
     setShowSuccessPopup(false);
-    navigation.navigate('Home');
+    navigation.replace('Home');
   };
 
   const handleGoogleLogin = () => {
     Alert.alert('Google Login', 'Google login pressed');
-  };
-
-  const handleAppleLogin = () => {
-    Alert.alert('Apple Login', 'Apple login pressed');
-  };
-
-  const handleForgotPassword = () => {
-    Alert.alert('Forgot Password', 'Forgot password pressed');
   };
 
   return (
@@ -56,7 +76,10 @@ export const LoginScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => BackHandler.exitApp()}
+          >
             <ArrowBack width={35} height={40} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Sign In</Text>
@@ -78,14 +101,22 @@ export const LoginScreen: React.FC = () => {
 
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email password"
-              placeholderTextColor="#999"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={true}
-            />
+            <View style={styles.passwordInputContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Enter your email password"
+                placeholderTextColor="#999"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeIcon}
+              >
+                {showPassword ? <PasswordHide /> : <PasswordShow />}
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.optionsRow}>
@@ -96,12 +127,9 @@ export const LoginScreen: React.FC = () => {
               <View
                 style={[styles.checkbox, rememberMe && styles.checkboxChecked]}
               >
-                {rememberMe && <Icon name="checkmark" size={16} color="#fff" />}
+                {rememberMe && <CheckIcon width={10} />}
               </View>
               <Text style={styles.rememberMeText}>Remember me</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleForgotPassword}>
-              <Text style={styles.forgotPassword}>Forgot password?</Text>
             </TouchableOpacity>
           </View>
 
@@ -122,16 +150,9 @@ export const LoginScreen: React.FC = () => {
             <Text style={styles.socialButtonText}>🌐 Continue with Google</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.socialButton}
-            onPress={handleAppleLogin}
-          >
-            <Text style={styles.socialButtonText}>🍎 Continue with Apple</Text>
-          </TouchableOpacity>
-
           <View style={styles.signUpContainer}>
             <Text style={styles.signUpText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+            <TouchableOpacity onPress={() => navigation.replace('Signup')}>
               <Text style={styles.signUpLink}>Sign Up</Text>
             </TouchableOpacity>
           </View>
@@ -178,19 +199,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     flex: 1,
   },
-  signupTitleContainer: {
-    marginBottom: 30,
-  },
-  signupTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 8,
-  },
-  signupSubtitle: {
-    fontSize: 14,
-    color: '#666',
-  },
   inputContainer: {
     marginBottom: 20,
   },
@@ -207,6 +215,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 12,
     fontSize: 16,
+    color: '#000000',
     backgroundColor: '#f9f9f9',
   },
   passwordInputContainer: {
@@ -222,6 +231,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 12,
     fontSize: 16,
+    color: '#000',
   },
   eyeIcon: {
     paddingHorizontal: 15,
@@ -253,11 +263,6 @@ const styles = StyleSheet.create({
   rememberMeText: {
     fontSize: 14,
     color: '#333',
-  },
-  forgotPassword: {
-    fontSize: 14,
-    color: '#FF5722',
-    fontWeight: '500',
   },
   primaryButton: {
     backgroundColor: '#85CC16',
