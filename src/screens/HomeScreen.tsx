@@ -10,32 +10,23 @@ import {
   ScrollView,
   SafeAreaView,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 
 import {
-  CloseIcon,
   NavigateIcon,
   SortIcon,
   FilterIcon,
   SearchIcon,
   LocationIcon,
-  NotFavoriteIcon,
   AddIcon,
-  StarIcon,
 } from '../assets';
 import { RootStackNavigationProp } from 'src/navigation/navigation';
-
-const userAvatar = 'https://randomuser.me/api/portraits/men/1.jpg';
-const tripImage =
-  'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=400&q=80';
 
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<RootStackNavigationProp<'CreateTrip'>>();
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('Adventure');
   const [trips, setTrips] = useState<any[]>([]);
   const [userName, setUserName] = useState('User');
 
@@ -47,8 +38,12 @@ export const HomeScreen: React.FC = () => {
           if (!userStr) return;
           const user = JSON.parse(userStr);
 
-          // Set user name from AsyncStorage
-          setUserName(user.name || user.fullName || user.firstName || 'User');
+          setUserName(
+            user.name ||
+              user.fullName ||
+              user.firstName + ' ' + user.lastName ||
+              'User',
+          );
 
           const tripsStr = await AsyncStorage.getItem('trips');
           const allTrips = tripsStr ? JSON.parse(tripsStr) : {};
@@ -66,6 +61,13 @@ export const HomeScreen: React.FC = () => {
   const filteredTrips = trips.filter(trip =>
     trip.tripLocation?.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const getInitials = (name: string): string => {
+    if (!name) return '';
+    const words = name.trim().split(' ');
+    if (words.length === 1) return words[0][0]?.toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
+  };
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
@@ -95,13 +97,12 @@ export const HomeScreen: React.FC = () => {
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Image source={{ uri: userAvatar }} style={styles.avatar} />
+          {/* <Image source={{ uri: userAvatar }} style={styles.avatar} /> */}
+          <View style={styles.initialsCircle}>
+            <Text style={styles.initialsText}>{getInitials(userName)}</Text>
+          </View>
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={styles.hiText}>Hi, {userName}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <LocationIcon />
-              <Text style={styles.locationText}>Chicago, New York</Text>
-            </View>
           </View>
           <TouchableOpacity style={styles.langBtn}>
             <SortIcon />
@@ -144,7 +145,6 @@ export const HomeScreen: React.FC = () => {
                           source={{ uri: item.image }}
                           style={styles.tripImage}
                         />
-                        {/* <NotFavoriteIcon style={styles.favoriteIcon} /> */}
                       </View>
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <Text style={styles.tripTitle}>
@@ -153,7 +153,6 @@ export const HomeScreen: React.FC = () => {
                         <View
                           style={{ flexDirection: 'row', alignItems: 'center' }}
                         >
-                          <StarIcon width={14} />
                           <Text style={styles.tripLocation}>
                             {`${formatDate(item.startDate)} - ${formatDate(
                               item.endDate,
@@ -375,6 +374,19 @@ const styles = StyleSheet.create({
     height: 109,
     borderRadius: 12,
   },
+  initialsCircle: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: '#85CC16',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+initialsText: {
+  color: '#fff',
+  fontWeight: 'bold',
+  fontSize: 16,
+},
   favoriteIcon: {
     position: 'absolute',
     top: 8,
