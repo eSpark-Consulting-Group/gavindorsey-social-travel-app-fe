@@ -29,6 +29,7 @@ export const HomeScreen: React.FC = () => {
   const [search, setSearch] = useState('');
   const [trips, setTrips] = useState<any[]>([]);
   const [userName, setUserName] = useState('User');
+  const [profilePic, setProfilePic] = useState('');
 
   useFocusEffect(
     React.useCallback(() => {
@@ -37,14 +38,15 @@ export const HomeScreen: React.FC = () => {
           const userStr = await AsyncStorage.getItem('loggedInUser');
           if (!userStr) return;
           const user = JSON.parse(userStr);
-
+          if (user.profile != null) {
+            setProfilePic(user.profile || user.photo || '');
+          }
           setUserName(
             user.name ||
               user.fullName ||
               user.firstName + ' ' + user.lastName ||
               'User',
           );
-
           const tripsStr = await AsyncStorage.getItem('trips');
           const allTrips = tripsStr ? JSON.parse(tripsStr) : {};
           console.log('All Trips:', allTrips);
@@ -97,9 +99,12 @@ export const HomeScreen: React.FC = () => {
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <View style={styles.header}>
-          {/* <Image source={{ uri: userAvatar }} style={styles.avatar} /> */}
           <View style={styles.initialsCircle}>
-            <Text style={styles.initialsText}>{getInitials(userName)}</Text>
+            {profilePic && profilePic.length > 0 ? (
+              <Image source={{ uri: profilePic }} style={styles.avatar} />
+            ) : (
+              <Text style={styles.initialsText}>{getInitials(userName)}</Text>
+            )}
           </View>
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={styles.hiText}>Hi, {userName}</Text>
@@ -375,18 +380,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   initialsCircle: {
-  width: 40,
-  height: 40,
-  borderRadius: 20,
-  backgroundColor: '#85CC16',
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-initialsText: {
-  color: '#fff',
-  fontWeight: 'bold',
-  fontSize: 16,
-},
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#85CC16',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  initialsText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
   favoriteIcon: {
     position: 'absolute',
     top: 8,
