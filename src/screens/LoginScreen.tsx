@@ -10,12 +10,14 @@ import {
   Alert,
   ScrollView,
   BackHandler,
+  ToastAndroid,
 } from 'react-native';
 
 import { RootStackNavigationProp } from '../navigation/navigation';
 import { ArrowBack, CheckIcon, PasswordHide, PasswordShow } from '../assets';
 import { LoginSuccessPopup } from './LoginSuccessPopup';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
 
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<RootStackNavigationProp<'Login'>>();
@@ -65,8 +67,57 @@ export const LoginScreen: React.FC = () => {
     navigation.replace('Home');
   };
 
-  const handleGoogleLogin = () => {
-    Alert.alert('Google Login', 'Google login pressed');
+  const handleGoogleLogin = async () => {
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      console.log("Google Sign In Success:", JSON.stringify(response));
+
+      if (response.data!=null) {
+  //  const usersStr = await AsyncStorage.getItem('users');
+  //     const users = usersStr ? JSON.parse(usersStr) : [];
+  //     const user = users.find(
+  //       (u: any) => u.email === email && u.password === password,
+  //     );
+  //     if (!user) {
+  //       Alert.alert('Error', 'Invalid email or password');
+  //       return;
+  //     }
+  //     if (rememberMe) {
+  //       await AsyncStorage.setItem('isUserLoggedIn', 'true');
+  //     }
+  //     await AsyncStorage.setItem('loggedInUser', JSON.stringify(user));
+      setShowSuccessPopup(true);
+
+        // const userResp = await handleSignUpUser(
+        //   {
+        //     firstName: response?.data?.user.givenName || "",
+        //     lastName: response.data?.user.familyName || "",
+        //     email: response.data?.user.email || "",
+        //     role: "user",
+        //     socialId: response.data?.user.id || "",
+        //     profileImage: response.data?.user.photo || "",
+        //   },
+        //   true
+        // );
+        // if (userResp.status && userResp.userInfo) {
+        //   api.setHeader("Authorization", `Bearer ${userResp.userInfo.token}`);
+        //   fetchAllUserProfileData(userResp.userInfo, true);
+        // } else {
+        //   setLoading(false);
+        //   showToast("Sign up failed", "error");
+        // }
+      }
+    } catch (error) {
+      // setLoading(false);
+      if (error instanceof Error) {
+        console.error("Detailed error:", error.message);
+        ToastAndroid.show(`Google sign-in error: ${error.message}`, ToastAndroid.SHORT);
+      } else {
+        console.error("Unknown error occurred");
+        ToastAndroid.show("An unknown error occurred during Google sign-in", ToastAndroid.SHORT);
+      }
+    }
   };
 
   return (
