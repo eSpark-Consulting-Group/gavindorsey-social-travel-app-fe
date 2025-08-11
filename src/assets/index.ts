@@ -1,0 +1,17 @@
+export { default as ArrowBack } from '../assets/svgs/arrowBack.svg';
+export { default as CheckIcon } from '../assets/svgs/check.svg';
+export { default as NavigateIcon } from '../assets/svgs/navigate.svg';
+export { default as CloseIcon } from '../assets/svgs/close.svg';
+export { default as SearchIcon } from '../assets/svgs/search.svg';
+export { default as SortIcon } from '../assets/svgs/sort.svg';
+export { default as FilterIcon } from '../assets/svgs/filter.svg';
+export { default as NotFavoriteIcon } from '../assets/svgs/noFav.svg';
+export { default as LocationIcon } from '../assets/svgs/location.svg';
+export { default as AddIcon } from '../assets/svgs/add.svg';
+export { default as AddBackgroundIcon } from '../assets/svgs/addBackground.svg';
+export { default as CalendarIcon } from '../assets/svgs/calendar.svg';
+export { default as CameraIcon } from '../assets/svgs/camera.svg';
+export { default as StarIcon } from '../assets/svgs/star.svg';
+export { default as PasswordShow } from '../assets/svgs/passwordEye.svg';
+export { default as PasswordHide } from '../assets/svgs/passwordHide.svg';
+export { default as Google } from '../assets/svgs/google.svg';

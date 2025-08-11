@@ -1,0 +1,41 @@
+import React, { useEffect } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import { SafeAreaView } from 'react-native';
+
+import { SignupScreen } from '../screens/SignupScreen';
+import { LoginScreen } from '../screens/LoginScreen';
+import { RootStackParamList } from './navigation';
+import { HomeScreen } from '../screens/HomeScreen';
+import { CreateTrip } from '../screens/CreateTrip';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+
+const Stack = createStackNavigator<RootStackParamList>();
+
+export default function App() {
+  useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: '669233305873-77c212ldgvusnpvntp96coga6jcogjrj.apps.googleusercontent.com', // from google-services.json, client_type=3
+    });
+  }, []);
+
+  return (
+    <SafeAreaView style={{ flex: 1 }}>
+      <NavigationContainer>
+        <Stack.Navigator
+          initialRouteName={'Login'}
+          screenOptions={{
+            headerShown: false,
+          }}
+        >
+          <Stack.Group>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Signup" component={SignupScreen} />
+            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="CreateTrip" component={CreateTrip} />
+          </Stack.Group>
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaView>
+  );
+}
