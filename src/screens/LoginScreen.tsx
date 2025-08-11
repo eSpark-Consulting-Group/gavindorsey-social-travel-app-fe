@@ -366,7 +366,6 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 8,
     paddingVertical: 12,
-    alignItems: 'center',
     marginBottom: 15,
     backgroundColor: '#fff',
   },
