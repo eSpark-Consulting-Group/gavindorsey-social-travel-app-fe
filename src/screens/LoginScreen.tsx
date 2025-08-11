@@ -95,6 +95,7 @@ export const LoginScreen: React.FC = () => {
             firstName: response?.data?.user?.givenName || '',
             lastName: response?.data?.user?.familyName || '',
             email: response?.data?.user?.email || '',
+            profile: response?.data?.user?.photo || ''
           });
           const user = users.find(
             (u: any) => u.email === response?.data?.user?.email,
