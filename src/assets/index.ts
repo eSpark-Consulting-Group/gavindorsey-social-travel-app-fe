@@ -14,3 +14,4 @@ export { default as CameraIcon } from '../assets/svgs/camera.svg';
 export { default as StarIcon } from '../assets/svgs/star.svg';
 export { default as PasswordShow } from '../assets/svgs/passwordEye.svg';
 export { default as PasswordHide } from '../assets/svgs/passwordHide.svg';
+export { default as Google } from '../assets/svgs/google.svg';
