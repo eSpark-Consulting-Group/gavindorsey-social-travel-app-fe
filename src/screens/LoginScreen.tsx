@@ -74,6 +74,8 @@ export const LoginScreen: React.FC = () => {
       console.log("Google Sign In Success:", JSON.stringify(response));
 
       if (response.data!=null) {
+              setShowSuccessPopup(true);
+      }
   //  const usersStr = await AsyncStorage.getItem('users');
   //     const users = usersStr ? JSON.parse(usersStr) : [];
   //     const user = users.find(
@@ -87,7 +89,6 @@ export const LoginScreen: React.FC = () => {
   //       await AsyncStorage.setItem('isUserLoggedIn', 'true');
   //     }
   //     await AsyncStorage.setItem('loggedInUser', JSON.stringify(user));
-      setShowSuccessPopup(true);
 
         // const userResp = await handleSignUpUser(
         //   {
@@ -107,7 +108,6 @@ export const LoginScreen: React.FC = () => {
         //   setLoading(false);
         //   showToast("Sign up failed", "error");
         // }
-      }
     } catch (error) {
       // setLoading(false);
       if (error instanceof Error) {
