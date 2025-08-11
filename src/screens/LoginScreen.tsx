@@ -14,7 +14,13 @@ import {
 } from 'react-native';
 
 import { RootStackNavigationProp } from '../navigation/navigation';
-import { ArrowBack, CheckIcon, PasswordHide, PasswordShow } from '../assets';
+import {
+  ArrowBack,
+  CheckIcon,
+  Google,
+  PasswordHide,
+  PasswordShow,
+} from '../assets';
 import { LoginSuccessPopup } from './LoginSuccessPopup';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
@@ -76,11 +82,15 @@ export const LoginScreen: React.FC = () => {
       if (response.data != null) {
         const usersStr = await AsyncStorage.getItem('users');
         let users = usersStr ? JSON.parse(usersStr) : [];
-        const userExists = users.some((u: any) => u.email === response?.data?.user?.email);
+        const userExists = users.some(
+          (u: any) => u.email === response?.data?.user?.email,
+        );
         if (userExists) {
           const usersStr = await AsyncStorage.getItem('users');
           const users = usersStr ? JSON.parse(usersStr) : [];
-          const user = users.find((u: any) => u.email === response?.data?.user?.email);
+          const user = users.find(
+            (u: any) => u.email === response?.data?.user?.email,
+          );
           if (!user) {
             Alert.alert('Error', 'Invalid email or password');
             return;
@@ -88,14 +98,14 @@ export const LoginScreen: React.FC = () => {
           if (rememberMe) {
             await AsyncStorage.setItem('isUserLoggedIn', 'true');
           }
-                    console.log('User already exists, logged in:', user);
+          console.log('User already exists, logged in:', user);
           await AsyncStorage.setItem('loggedInUser', JSON.stringify(user));
         } else {
           users.push({
             firstName: response?.data?.user?.givenName || '',
             lastName: response?.data?.user?.familyName || '',
             email: response?.data?.user?.email || '',
-            profile: response?.data?.user?.photo || ''
+            profile: response?.data?.user?.photo || '',
           });
           const user = users.find(
             (u: any) => u.email === response?.data?.user?.email,
@@ -203,7 +213,8 @@ export const LoginScreen: React.FC = () => {
             style={styles.socialButton}
             onPress={handleGoogleLogin}
           >
-            <Text style={styles.socialButtonText}>🌐 Continue with Google</Text>
+            <Google />
+            <Text style={styles.socialButtonText}> Continue with Google</Text>
           </TouchableOpacity>
 
           <View style={styles.signUpContainer}>
@@ -348,6 +359,9 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   socialButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
