@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "669233305873",
+    "project_id": "planitary-1b0a3",
+    "storage_bucket": "planitary-1b0a3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:669233305873:android:9a5d31bc491cc14e8354b0",
+        "android_client_info": {
+          "package_name": "com.gavindorsey"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "669233305873-n7upklb832l02hok5paccmoagmfip3mk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gavindorsey",
+            "certificate_hash": "8a7577e80bbd19a28b3d6ec330693207775c1267"
+          }
+        },
+        {
+          "client_id": "669233305873-77c212ldgvusnpvntp96coga6jcogjrj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBbCgh6UMvX26yClcqyREK8TdJJ7fuF1Ck"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "669233305873-77c212ldgvusnpvntp96coga6jcogjrj.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
