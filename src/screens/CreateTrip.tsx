@@ -31,6 +31,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 
 import { RootStackNavigationProp } from '../navigation/navigation';
 import { createTrip, updateTrip } from '../services/tripsService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Note {
   id: number;
@@ -58,6 +59,7 @@ export const CreateTrip: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([{ id: 1, text: '', cost: 0 }]);
   const [totalDays, setTotalDays] = useState<number>(1);
   const [loading, setLoading] = useState(false);
+  const [selectedCurrency, setSelectedCurrency] = useState('USD');
 
   const route = useRoute();
   const editTrip = route.params && (route.params as any).trip;
@@ -101,6 +103,10 @@ export const CreateTrip: React.FC = () => {
   }, [editTrip]);
 
   useEffect(() => {
+    applyConversion();
+  }, [selectedCurrency]);
+
+  useEffect(() => {
     if (totalDays > notes.length) {
       const newNotes = [...notes];
       for (let i = notes.length; i < totalDays; i++) {
@@ -109,6 +115,52 @@ export const CreateTrip: React.FC = () => {
       setNotes(newNotes);
     }
   }, [totalDays, notes.length]);
+
+  useEffect(() => {
+    loadSelectedCurrency();
+  }, []);
+
+  const currencies = [
+    { code: 'USD', symbol: '$', name: 'US Dollar' },
+    { code: 'EUR', symbol: '€', name: 'Euro' },
+  ];
+
+  const applyConversion = async () => {
+    const savedCurrency = await AsyncStorage.getItem('selectedCurrency');
+    console.log('Idha aya hai');
+    if (savedCurrency && savedCurrency !== selectedCurrency) {
+      setBudget(prev => {
+        const num = parseFloat(prev) || 0;
+        return convertCurrency(savedCurrency, selectedCurrency, num).toString();
+      });
+
+      setNotes(prevNotes =>
+        prevNotes.map(note => ({
+          ...note,
+          cost: convertCurrency(savedCurrency, selectedCurrency, note.cost),
+        })),
+      );
+
+      await AsyncStorage.setItem('selectedCurrency', selectedCurrency);
+    }
+  };
+
+  const convertCurrency = (
+    from: string,
+    to: string,
+    amount: number,
+  ): number => {
+    if (from === to) return amount;
+
+     const rates: Record<string, Record<string, number>> = {
+      EUR: { USD: 1 },
+      USD: { EUR: 0.86 },
+    };
+
+    const rate = rates[from]?.[to] ?? 1;
+    console.log('Currency Rate ', rate);
+    return parseFloat((amount * rate).toFixed(2));
+  };
 
   const formatDate = (date?: Date): string => {
     if (!date) return '';
@@ -199,6 +251,21 @@ export const CreateTrip: React.FC = () => {
     </TouchableOpacity>
   );
 
+  const loadSelectedCurrency = async () => {
+    try {
+      const savedCurrency = await AsyncStorage.getItem('selectedCurrency');
+      if (savedCurrency) {
+        setSelectedCurrency(savedCurrency);
+      } else {
+        // Default to USD
+        setSelectedCurrency('USD');
+      }
+    } catch (error) {
+      console.log('Error loading currency:', error);
+      setSelectedCurrency('USD');
+    }
+  };
+
   const handleNoteTextChange = (text: string) => {
     const updated = [...notes];
     while (updated.length < selectedDay) {
@@ -218,6 +285,11 @@ export const CreateTrip: React.FC = () => {
       cost: parseFloat(value) || 0,
     };
     setNotes(updated);
+  };
+
+  const getCurrencySymbol = (currencyCode: string) => {
+    const currency = currencies.find(c => c.code === currencyCode);
+    return currency?.symbol || '$';
   };
 
   const saveTrip = async () => {
@@ -263,11 +335,11 @@ export const CreateTrip: React.FC = () => {
           cost: note.cost,
         })),
       };
-        payload.image = {
-          uri: selectedImage,
-          name: `trip_${Date.now()}.jpg`,
-          type: 'image/jpeg',
-        };
+      payload.image = {
+        uri: selectedImage,
+        name: `trip_${Date.now()}.jpg`,
+        type: 'image/jpeg',
+      };
 
       console.log('selectedImage', selectedImage);
       let res;
@@ -303,7 +375,15 @@ export const CreateTrip: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('Home');
+            }
+          }}
+        >
           <ArrowBack />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
@@ -396,7 +476,9 @@ export const CreateTrip: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Trip Budget</Text>
           <View style={styles.inputContainer}>
-            <Text style={styles.dollarSign}>$</Text>
+            <Text style={styles.dollarSign}>
+              {getCurrencySymbol(selectedCurrency)}
+            </Text>
             <TextInput
               style={styles.input}
               value={budget}
@@ -437,7 +519,9 @@ export const CreateTrip: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Today Cost</Text>
           <View style={styles.costInputContainer}>
-            <Text style={styles.dollarSignGreen}>$</Text>
+            <Text style={styles.dollarSignGreen}>
+              {getCurrencySymbol(selectedCurrency)}
+            </Text>
             <TextInput
               style={styles.input}
               value={(notes[selectedDay - 1]?.cost || 0).toString()}
@@ -453,7 +537,8 @@ export const CreateTrip: React.FC = () => {
           <View style={styles.remainingBudgetRow}>
             <Text style={styles.remainingBudgetLabel}>Remaining Budget : </Text>
             <Text style={styles.remainingBudgetAmount}>
-              ${getRemainingBudget().toLocaleString()}
+              {getCurrencySymbol(selectedCurrency)}
+              {getRemainingBudget().toLocaleString()}
             </Text>
           </View>
         </View>

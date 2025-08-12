@@ -18,7 +18,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDispatch } from 'react-redux';
 import { setUser } from '../redux/slices/authSlice';
 import { signup } from '../services/authService';
-import { showToast } from '../utils/showToast';
 
 export const SignupScreen: React.FC = () => {
   const navigation = useNavigation<RootStackNavigationProp<'Signup'>>();
