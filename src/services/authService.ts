@@ -13,8 +13,8 @@ export interface SignupPayload {
 }
 export interface SocialLoginPayload {
   email: string;
-  first_name: string;
-  last_name: string;
+  firstName: string;
+  lastName: string;
 }
 
 export const login = async (payload: LoginPayload) => {
