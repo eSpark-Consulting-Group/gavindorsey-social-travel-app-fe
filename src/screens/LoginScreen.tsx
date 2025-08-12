@@ -11,6 +11,7 @@ import {
   ScrollView,
   BackHandler,
   ToastAndroid,
+  ActivityIndicator,
 } from 'react-native';
 
 import { RootStackNavigationProp } from '../navigation/navigation';
@@ -24,6 +25,10 @@ import {
 import { LoginSuccessPopup } from './LoginSuccessPopup';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { login, signup, socialLogin } from '../services/authService';
+import { useDispatch } from 'react-redux';
+import { setIsLoggedIn, setUser } from '../redux/slices/authSlice';
+import { showToast } from '../utils/showToast';
 
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<RootStackNavigationProp<'Login'>>();
@@ -32,39 +37,61 @@ export const LoginScreen: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
-  useEffect(() => {
-    const checkLoggedIn = async () => {
-      const userStr = await AsyncStorage.getItem('isUserLoggedIn');
-      if (userStr === 'true') {
-        navigation.replace('Home');
-      }
-    };
-    checkLoggedIn();
-  }, []);
+  const [loading, setLoading] = useState(false);
+  const dispatch = useDispatch();
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-    try {
-      const usersStr = await AsyncStorage.getItem('users');
-      const users = usersStr ? JSON.parse(usersStr) : [];
-      const user = users.find(
-        (u: any) => u.email === email && u.password === password,
+      ToastAndroid.show(
+        `Email or Password Can't be empty.`,
+        ToastAndroid.SHORT,
       );
-      if (!user) {
-        Alert.alert('Error', 'Invalid email or password');
-        return;
+    } else if (!email.includes('@')) {
+      ToastAndroid.show(`Invalid email format.`, ToastAndroid.SHORT);
+    }
+
+    try {
+      setLoading(true);
+      const res = await login({
+        email: email,
+        password: password,
+      });
+      console.log('res', res);
+
+      if (res?.success) {
+        setLoading(false);
+        console.log('res', res);
+        dispatch(setUser(res.data));
+        await AsyncStorage.setItem('accessToken', res?.data?.token);
+        const user = {
+            userID: res?.data?.user_id,
+            firstName: res?.data?.first_name,
+            lastName: res?.data?.last_name,
+            email: res?.data?.email,
+            lastLoginAt: res?.data?.lastLoginAt,
+            isSocialLogin: res?.data?.isSocialLogin,
+            profile: null,
+        };
+        if (rememberMe) {
+          await AsyncStorage.setItem('isUserLoggedIn', 'true');
+          dispatch(setIsLoggedIn(true));
+        }
+        dispatch(setUser(user));
+        await AsyncStorage.setItem('userDetails', JSON.stringify(user));
+        ToastAndroid.show(`Login successful!`, ToastAndroid.SHORT);
+        navigation.replace('Home');
+      } else {
+        setLoading(false);
+        console.error('Login failed:', res?.message);
+        ToastAndroid.show(
+          res?.message || 'Login failed. Please try again.',
+          ToastAndroid.SHORT,
+        );
       }
-      if (rememberMe) {
-        await AsyncStorage.setItem('isUserLoggedIn', 'true');
-      }
-      await AsyncStorage.setItem('loggedInUser', JSON.stringify(user));
-      setShowSuccessPopup(true);
-    } catch (e) {
-      Alert.alert('Error', 'Failed to login. Please try again.');
+    } catch (err) {
+      setLoading(false);
+      console.log('Login error:', err);
+      ToastAndroid.show('Login failed. Please try again.', ToastAndroid.SHORT);
     }
   };
 
@@ -80,45 +107,42 @@ export const LoginScreen: React.FC = () => {
       console.log('Google Sign In Success:', JSON.stringify(response));
 
       if (response.data != null) {
-        const usersStr = await AsyncStorage.getItem('users');
-        let users = usersStr ? JSON.parse(usersStr) : [];
-        const userExists = users.some(
-          (u: any) => u.email === response?.data?.user?.email,
-        );
-        if (userExists) {
-          const usersStr = await AsyncStorage.getItem('users');
-          const users = usersStr ? JSON.parse(usersStr) : [];
-          const user = users.find(
-            (u: any) => u.email === response?.data?.user?.email,
-          );
-          if (!user) {
-            Alert.alert('Error', 'Invalid email or password');
-            return;
-          }
+        const res = await socialLogin({
+          email: response.data?.user.email || '',
+          first_name: response.data?.user.givenName || '',
+          last_name: response.data?.user.familyName || '',
+        });
+        if (res?.success) {
+          setLoading(false);
+          console.log('res', res);
+          dispatch(setUser(res.data));
+          await AsyncStorage.setItem('accessToken', res?.data?.token);
+          const user = {
+              userID: res?.data?.user_id,
+              firstName: res?.data?.first_name,
+              lastName: res?.data?.last_name,
+              email: res?.data?.email,
+              lastLoginAt: res?.data?.lastLoginAt,
+              isSocialLogin: res?.data?.isSocialLogin,
+              profile: null,
+          };
           if (rememberMe) {
             await AsyncStorage.setItem('isUserLoggedIn', 'true');
+            dispatch(setIsLoggedIn(true));
           }
-          console.log('User already exists, logged in:', user);
-          await AsyncStorage.setItem('loggedInUser', JSON.stringify(user));
+          dispatch(setUser(user));
+          await AsyncStorage.setItem('userDetails', JSON.stringify(user));
+          ToastAndroid.show('Login successful!', ToastAndroid.SHORT);
+          navigation.replace('Home');
         } else {
-          users.push({
-            firstName: response?.data?.user?.givenName || '',
-            lastName: response?.data?.user?.familyName || '',
-            email: response?.data?.user?.email || '',
-            profile: response?.data?.user?.photo || '',
-          });
-          const user = users.find(
-            (u: any) => u.email === response?.data?.user?.email,
-          );
-          await AsyncStorage.setItem('users', JSON.stringify(users));
-          console.log('Neeche user already exists, logged in:', user);
-          await AsyncStorage.setItem('loggedInUser', JSON.stringify(user));
+          setLoading(false);
+          ToastAndroid.show('Login failed!', ToastAndroid.SHORT);
         }
 
         setShowSuccessPopup(true);
       }
     } catch (error) {
-      // setLoading(false);
+      setLoading(false);
       if (error instanceof Error) {
         console.error('Detailed error:', error.message);
         ToastAndroid.show(
@@ -198,11 +222,16 @@ export const LoginScreen: React.FC = () => {
               <Text style={styles.rememberMeText}>Remember me</Text>
             </TouchableOpacity>
           </View>
-
-          <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
-            <Text style={styles.primaryButtonText}>Continue with Email</Text>
-          </TouchableOpacity>
-
+          {loading ? (
+            <ActivityIndicator size="large" color="#4A90E2" />
+          ) : (
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleLogin}
+            >
+              <Text style={styles.primaryButtonText}>Continue with Email</Text>
+            </TouchableOpacity>
+          )}
           <View style={styles.dividerContainer}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>Or Continue with</Text>

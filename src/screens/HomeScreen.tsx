@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   FlatList,
   ScrollView,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,49 +20,51 @@ import {
   SortIcon,
   FilterIcon,
   SearchIcon,
-  LocationIcon,
   AddIcon,
 } from '../assets';
 import { RootStackNavigationProp } from 'src/navigation/navigation';
+import { RootState } from '../redux/store';
+import { useDispatch, useSelector } from 'react-redux';
+
+import { fetchAllTrips } from '../services/tripsService';
 
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<RootStackNavigationProp<'CreateTrip'>>();
   const [search, setSearch] = useState('');
-  const [trips, setTrips] = useState<any[]>([]);
   const [userName, setUserName] = useState('User');
   const [profilePic, setProfilePic] = useState('');
+  const { trips, loading, error } = useSelector(
+    (state: RootState) => state.trips,
+  );
+  const dispatch = useDispatch();
 
   useFocusEffect(
     React.useCallback(() => {
-      const fetchTrips = async () => {
-        try {
-          const userStr = await AsyncStorage.getItem('loggedInUser');
-          if (!userStr) return;
-          const user = JSON.parse(userStr);
-          if (user.profile != null) {
-            setProfilePic(user.profile || user.photo || '');
-          }
-          setUserName(
-            user.name ||
-              user.fullName ||
-              user.firstName + ' ' + user.lastName ||
-              'User',
-          );
-          const tripsStr = await AsyncStorage.getItem('trips');
-          const allTrips = tripsStr ? JSON.parse(tripsStr) : {};
-          console.log('All Trips:', allTrips);
-          setTrips(allTrips[user.email] || []);
-        } catch (e) {
-          setTrips([]);
-          setUserName('User');
-        }
-      };
-      fetchTrips();
+      dispatch(fetchAllTrips() as any);
+      fetchUserInfo();
     }, []),
   );
 
-  const filteredTrips = trips.filter(trip =>
-    trip.tripLocation?.toLowerCase().includes(search.toLowerCase()),
+  const fetchUserInfo = async () => {
+    try {
+      const userStr = await AsyncStorage.getItem('userDetails');
+      console.log('User Details:', userStr);
+      if (!userStr) return;
+      const user = JSON.parse(userStr);
+      if (user.profile != null) {
+        setProfilePic(user.profile || user.photo || '');
+      }
+      setUserName(user.firstName + ' ' + user.lastName || 'User');
+    } catch (e) {
+      setUserName('User');
+    }
+  };
+
+  const filteredTrips = trips.filter(
+    trip =>
+      trip &&
+      typeof trip.location === 'string' &&
+      trip.location.toLowerCase().includes(search.toLowerCase()),
   );
 
   const getInitials = (name: string): string => {
@@ -129,8 +132,11 @@ export const HomeScreen: React.FC = () => {
             <FilterIcon height={20} />
           </TouchableOpacity>
         </View>
-
-        {trips && trips.length > 0 ? (
+        {loading ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="large" color="#4A90E2" />
+          </View>
+        ) : trips && trips.length > 0 ? (
           <ScrollView style={{ flex: 1 }}>
             <Text style={styles.recentViewedLabel}>
               {search
@@ -143,17 +149,17 @@ export const HomeScreen: React.FC = () => {
                 data={filteredTrips}
                 keyExtractor={item => item.id}
                 renderItem={({ item }) => (
-                  <TouchableOpacity onPress={() => handleEditTrip(item)}>
+                  <TouchableOpacity>
                     <View style={styles.tripCard}>
                       <View style={{ position: 'relative' }}>
                         <Image
-                          source={{ uri: item.image }}
+                          source={{ uri: item.imageUrl || '' }}
                           style={styles.tripImage}
                         />
                       </View>
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <Text style={styles.tripTitle}>
-                          {item.tripLocation || 'Trip'}
+                          {item.location || 'Trip'}
                         </Text>
                         <View
                           style={{ flexDirection: 'row', alignItems: 'center' }}
@@ -162,9 +168,6 @@ export const HomeScreen: React.FC = () => {
                             {`${formatDate(item.startDate)} - ${formatDate(
                               item.endDate,
                             )}` || ''}
-                          </Text>
-                          <Text style={styles.tripRating}>
-                            {item.rating || ''}
                           </Text>
                         </View>
                         <Text style={styles.tripPrice}>
@@ -189,22 +192,18 @@ export const HomeScreen: React.FC = () => {
           </ScrollView>
         ) : (
           <View style={styles.centered}>
-            <TouchableOpacity
-              style={styles.createBtn}
-              onPress={() => handleAddTrip()}
-            >
+            <TouchableOpacity style={styles.createBtn} onPress={handleAddTrip}>
               <AddIcon />
               <Text style={styles.createBtnText}>Create a New Trip</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {trips.length > 0 && (
+        {/* Floating button */}
+        {trips && trips.length > 0 && (
           <TouchableOpacity
             style={styles.floatingBtn}
-            onPress={() => {
-              navigation.navigate('CreateTrip');
-            }}
+            onPress={() => navigation.navigate('CreateTrip')}
           >
             <AddIcon />
           </TouchableOpacity>
@@ -261,6 +260,11 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontSize: 15,
     color: '#222',
+  },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   filterBtn: {
     backgroundColor: '#FFFFFF',
