@@ -7,14 +7,18 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  Alert,
   ScrollView,
+  ActivityIndicator,
   ToastAndroid,
 } from 'react-native';
 
 import { RootStackNavigationProp } from '../navigation/navigation';
 import { ArrowBack, PasswordHide, PasswordShow } from '../assets';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useDispatch } from 'react-redux';
+import { setUser } from '../redux/slices/authSlice';
+import { signup } from '../services/authService';
+import { showToast } from '../utils/showToast';
 
 export const SignupScreen: React.FC = () => {
   const navigation = useNavigation<RootStackNavigationProp<'Signup'>>();
@@ -25,34 +29,62 @@ export const SignupScreen: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const dispatch = useDispatch();
 
   const handleSignup = async () => {
     if (!firstName || !lastName || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+      ToastAndroid.show('Please fill in all fields', ToastAndroid.SHORT);
       return;
     }
+
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      ToastAndroid.show(
+        'Passwords do not matchPlease fill in all fields',
+        ToastAndroid.SHORT,
+      );
       return;
     }
+
     try {
-      const usersStr = await AsyncStorage.getItem('users');
-      let users = usersStr ? JSON.parse(usersStr) : [];
-      const userExists = users.some((u: any) => u.email === email);
-      if (userExists) {
-        Alert.alert('Error', 'User already exists with this email');
-        return;
+      setLoading(true);
+      const res = await signup({
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        password,
+      });
+
+      console.log('res', res);
+
+      if (res?.success) {
+        setLoading(false);
+        console.log('res', res);
+        await AsyncStorage.setItem('accessToken', res?.data?.token);
+        const user = {
+          userID: res?.data?.user_id,
+          firstName: res?.data?.first_name,
+          lastName: res?.data?.last_name,
+          email: res?.data?.email,
+          lastLoginAt: res?.data?.lastLoginAt,
+          isSocialLogin: res?.data?.isSocialLogin,
+          profile: null,
+        };
+        dispatch(setUser(user));
+        await AsyncStorage.setItem('userDetails', JSON.stringify(user));
+        ToastAndroid.show('Account created successfully!', ToastAndroid.SHORT);
+        navigation.replace('Home');
+      } else {
+        setLoading(false);
+        ToastAndroid.show(
+          'Signup failed. Please try again.',
+          ToastAndroid.SHORT,
+        );
       }
-      users.push({ firstName, lastName, email, password });
-      const user = users.find(
-        (u: any) => u.email === email && u.password === password,
-      );
-      await AsyncStorage.setItem('users', JSON.stringify(users));
-      await AsyncStorage.setItem('loggedInUser', JSON.stringify(user));
-      ToastAndroid.show('Account created successfully!', ToastAndroid.SHORT);
-      navigation.replace('Home');
-    } catch (e) {
-      Alert.alert('Error', 'Failed to sign up. Please try again.');
+    } catch (error) {
+      setLoading(false);
+      ToastAndroid.show('Signup failed. Please try again.', ToastAndroid.SHORT);
+      console.error('Signup error:', error);
     }
   };
 
@@ -154,10 +186,25 @@ export const SignupScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
           </View>
-
-          <TouchableOpacity style={styles.primaryButton} onPress={handleSignup}>
-            <Text style={styles.primaryButtonText}>Sign Up</Text>
-          </TouchableOpacity>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            {loading ? (
+              <ActivityIndicator color="#4A90E2" size="large" />
+            ) : (
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={handleSignup}
+              >
+                <Text style={styles.primaryButtonText}>Sign Up</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -281,6 +328,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     backgroundColor: '#7CB342',
     borderRadius: 8,
+    flex: 1,
     paddingVertical: 15,
     alignItems: 'center',
     marginBottom: 15,

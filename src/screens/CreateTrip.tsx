@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   Alert,
   ToastAndroid,
+  ActivityIndicator,
 } from 'react-native';
 import DatePicker from 'react-native-date-picker';
 import {
@@ -26,12 +27,13 @@ import {
   CalendarIcon,
   CameraIcon,
 } from '../assets';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { RootStackNavigationProp } from 'src/navigation/navigation';
+
+import { RootStackNavigationProp } from '../navigation/navigation';
+import { createTrip, updateTrip } from '../services/tripsService';
 
 interface Note {
-  id: string;
+  id: number;
   text: string;
   cost: number;
 }
@@ -53,46 +55,46 @@ export const CreateTrip: React.FC = () => {
   const [budget, setBudget] = useState<string>('');
   const [locationName, setLocationName] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<number>(1);
-  const [notes, setNotes] = useState<Note[]>([{ id: '1', text: '', cost: 0 }]);
+  const [notes, setNotes] = useState<Note[]>([{ id: 1, text: '', cost: 0 }]);
   const [totalDays, setTotalDays] = useState<number>(1);
+  const [loading, setLoading] = useState(false);
 
   const route = useRoute();
   const editTrip = route.params && (route.params as any).trip;
 
   useEffect(() => {
+    console.log('EditTrip:', editTrip);
     if (editTrip) {
-      setLocationName(editTrip.tripLocation || '');
-      setSelectedImage(editTrip.image || '');
+      setLocationName(editTrip.location || '');
+      setSelectedImage(editTrip.imageUrl || '');
       setStartDate(
         editTrip.startDate ? new Date(editTrip.startDate) : undefined,
       );
       setEndDate(editTrip.endDate ? new Date(editTrip.endDate) : undefined);
       setBudget(editTrip.budget || '');
-      
-      // Debug log
-      console.log('EditTrip notes:', editTrip.notes);
-      
-      // Ensure notes array is properly structured
-      if (editTrip.notes && editTrip.notes.length > 0) {
-        const formattedNotes = editTrip.notes.map((note: any, index: number) => ({
-          id: (index + 1).toString(),
-          text: note.text || '',
-          cost: parseFloat(note.cost) || 0,
-        }));
+
+      if (editTrip.days && editTrip.days.length > 0) {
+        const formattedNotes = editTrip.days.map(
+          (note: any, index: number) => ({
+            id: note.dayNumber,
+            text: note.notes || '',
+            cost: parseFloat(note.cost) || 0,
+          }),
+        );
+        setTotalDays(editTrip.days.length || 1);
         setNotes(formattedNotes);
       } else {
-        setNotes([{ id: '1', text: '', cost: 0 }]);
+        setNotes([{ id: 1, text: '', cost: 0 }]);
+        setTotalDays(1);
       }
-      
       setSelectedDay(1);
-      setTotalDays(editTrip.totalDays || 1);
     } else {
       setLocationName('');
       setSelectedImage('');
       setStartDate(undefined);
       setEndDate(undefined);
       setBudget('');
-      setNotes([{ id: '1', text: '', cost: 0 }]);
+      setNotes([{ id: 1, text: '', cost: 0 }]);
       setTotalDays(1);
       setSelectedDay(1);
     }
@@ -102,7 +104,7 @@ export const CreateTrip: React.FC = () => {
     if (totalDays > notes.length) {
       const newNotes = [...notes];
       for (let i = notes.length; i < totalDays; i++) {
-        newNotes.push({ id: (i + 1).toString(), text: '', cost: 0 });
+        newNotes.push({ id: i + 1, text: '', cost: 0 });
       }
       setNotes(newNotes);
     }
@@ -199,9 +201,8 @@ export const CreateTrip: React.FC = () => {
 
   const handleNoteTextChange = (text: string) => {
     const updated = [...notes];
-    // Ensure the array has enough elements
     while (updated.length < selectedDay) {
-      updated.push({ id: updated.length + 1 + '', text: '', cost: 0 });
+      updated.push({ id: updated.length + 1, text: '', cost: 0 });
     }
     updated[selectedDay - 1] = { ...updated[selectedDay - 1], text };
     setNotes(updated);
@@ -209,11 +210,13 @@ export const CreateTrip: React.FC = () => {
 
   const handleCostChange = (value: string) => {
     const updated = [...notes];
-    // Ensure the array has enough elements
     while (updated.length < selectedDay) {
-      updated.push({ id: updated.length + 1 + '', text: '', cost: 0 });
+      updated.push({ id: updated.length + 1, text: '', cost: 0 });
     }
-    updated[selectedDay - 1] = { ...updated[selectedDay - 1], cost: parseFloat(value) || 0 };
+    updated[selectedDay - 1] = {
+      ...updated[selectedDay - 1],
+      cost: parseFloat(value) || 0,
+    };
     setNotes(updated);
   };
 
@@ -241,61 +244,57 @@ export const CreateTrip: React.FC = () => {
       Alert.alert('Missing Info', 'Please enter a valid budget.');
       return;
     }
-
     if (notes.some(note => !note.text.trim())) {
-      Alert.alert('Missing Info', 'Please fill in notes for all days.');
+      Alert.alert('Missing Info', 'Please enter notes for each day.');
       return;
     }
-
     try {
-      const userStr = await AsyncStorage.getItem('loggedInUser');
-      if (!userStr) {
-        Alert.alert('Error', 'You must be logged in to create a trip.');
-        return;
-      }
-
-      const user = JSON.parse(userStr);
-      const tripsStr = await AsyncStorage.getItem('trips');
-      let trips = tripsStr ? JSON.parse(tripsStr) : {};
-      let userTrips = trips[user.email] || [];
-
-      if (editTrip) {
-        userTrips = userTrips.map((t: any) =>
-          t.id === editTrip.id
-            ? {
-                ...t,
-                image: selectedImage,
-                startDate,
-                endDate,
-                tripLocation: locationName,
-                budget,
-                notes,
-                totalDays,
-              }
-            : t,
-        );
-      } else {
-        const newTrip = {
-          id: Date.now().toString(),
-          image: selectedImage,
-          startDate,
-          endDate,
-          tripLocation: locationName,
-          budget,
-          notes,
-          totalDays,
+      setLoading(true);
+      console.log('Saving trip with data:');
+      const payload: any = {
+        start_date: startDate.toISOString().split('T')[0],
+        end_date: endDate.toISOString().split('T')[0],
+        location: locationName,
+        budget: parseFloat(budget),
+        total_cost: getTotalCost(),
+        days: notes.map((note, index) => ({
+          day_number: note.id,
+          notes: note.text,
+          cost: note.cost,
+        })),
+      };
+        payload.image = {
+          uri: selectedImage,
+          name: `trip_${Date.now()}.jpg`,
+          type: 'image/jpeg',
         };
-        userTrips.push(newTrip);
-      }
 
-      trips[user.email] = userTrips;
-      await AsyncStorage.setItem('trips', JSON.stringify(trips));
-      ToastAndroid.show(
-        editTrip ? 'Trip updated successfully!' : 'Trip created successfully!',
-        ToastAndroid.SHORT,
-      );
-      navigation.goBack();
+      console.log('selectedImage', selectedImage);
+      let res;
+      if (editTrip) {
+        console.log('Edit new trip with payload:', payload);
+        res = await updateTrip({ ...payload, trip_id: editTrip.id });
+      } else {
+        console.log('Creating new trip with payload:', payload);
+        res = await createTrip(payload);
+      }
+      setLoading(false);
+      if (res.success && res.data) {
+        ToastAndroid.show(
+          editTrip
+            ? 'Trip updated successfully!'
+            : 'Trip created successfully!',
+          ToastAndroid.SHORT,
+        );
+        navigation.goBack();
+      } else {
+        Alert.alert(
+          'Error',
+          res.error || 'Failed to save trip. Please try again.',
+        );
+      }
     } catch (e) {
+      setLoading(false);
       Alert.alert('Error', 'Failed to save trip. Please try again.');
     }
   };
@@ -307,7 +306,9 @@ export const CreateTrip: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <ArrowBack />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Trip</Text>
+        <Text style={styles.headerTitle}>
+          {editTrip ? 'Edit Trip' : 'Create Trip'}
+        </Text>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -382,14 +383,13 @@ export const CreateTrip: React.FC = () => {
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Trip Location</Text>
-          <View style={styles.inputContainer}>
-            <TextInput
-              placeholder="Enter Trip Location Here"
-              placeholderTextColor="#9CA3AF"
-              value={locationName}
-              onChangeText={setLocationName}
-            />
-          </View>
+          <TextInput
+            style={styles.inputContainer}
+            placeholder="Enter Trip Location Here"
+            placeholderTextColor="#9CA3AF"
+            value={locationName}
+            onChangeText={setLocationName}
+          />
         </View>
         <View></View>
 
@@ -459,9 +459,15 @@ export const CreateTrip: React.FC = () => {
         </View>
 
         <View style={{ marginBottom: 20 }}>
-          <TouchableOpacity style={styles.primaryButton} onPress={saveTrip}>
-            <Text style={styles.primaryButtonText}>Save Trip</Text>
-          </TouchableOpacity>
+          {loading ? (
+            <ActivityIndicator size="large" color="#4A90E2" />
+          ) : (
+            <TouchableOpacity style={styles.primaryButton} onPress={saveTrip}>
+              <Text style={styles.primaryButtonText}>
+                {editTrip ? 'Edit Trip' : 'Save Trip'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
