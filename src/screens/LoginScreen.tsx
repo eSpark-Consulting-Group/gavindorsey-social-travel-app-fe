@@ -64,13 +64,13 @@ export const LoginScreen: React.FC = () => {
         dispatch(setUser(res.data));
         await AsyncStorage.setItem('accessToken', res?.data?.token);
         const user = {
-            userID: res?.data?.user_id,
-            firstName: res?.data?.first_name,
-            lastName: res?.data?.last_name,
-            email: res?.data?.email,
-            lastLoginAt: res?.data?.lastLoginAt,
-            isSocialLogin: res?.data?.isSocialLogin,
-            profile: null,
+          userID: res?.data?.user_id,
+          firstName: res?.data?.first_name,
+          lastName: res?.data?.last_name,
+          email: res?.data?.email,
+          lastLoginAt: res?.data?.lastLoginAt,
+          isSocialLogin: res?.data?.isSocialLogin,
+          profile: null,
         };
         if (rememberMe) {
           await AsyncStorage.setItem('isUserLoggedIn', 'true');
@@ -78,8 +78,7 @@ export const LoginScreen: React.FC = () => {
         }
         dispatch(setUser(user));
         await AsyncStorage.setItem('userDetails', JSON.stringify(user));
-        ToastAndroid.show(`Login successful!`, ToastAndroid.SHORT);
-        navigation.replace('Home');
+        setShowSuccessPopup(true);
       } else {
         setLoading(false);
         console.error('Login failed:', res?.message);
@@ -102,6 +101,7 @@ export const LoginScreen: React.FC = () => {
 
   const handleGoogleLogin = async () => {
     try {
+      setLoading(true);
       await GoogleSignin.hasPlayServices();
       const response = await GoogleSignin.signIn();
       console.log('Google Sign In Success:', JSON.stringify(response));
@@ -109,8 +109,8 @@ export const LoginScreen: React.FC = () => {
       if (response.data != null) {
         const res = await socialLogin({
           email: response.data?.user.email || '',
-          first_name: response.data?.user.givenName || '',
-          last_name: response.data?.user.familyName || '',
+          firstName: response.data?.user.givenName || '',
+          lastName: response.data?.user.familyName || '',
         });
         if (res?.success) {
           setLoading(false);
@@ -118,13 +118,13 @@ export const LoginScreen: React.FC = () => {
           dispatch(setUser(res.data));
           await AsyncStorage.setItem('accessToken', res?.data?.token);
           const user = {
-              userID: res?.data?.user_id,
-              firstName: res?.data?.first_name,
-              lastName: res?.data?.last_name,
-              email: res?.data?.email,
-              lastLoginAt: res?.data?.lastLoginAt,
-              isSocialLogin: res?.data?.isSocialLogin,
-              profile: null,
+            userID: res?.data?.user_id,
+            firstName: res?.data?.first_name,
+            lastName: res?.data?.last_name,
+            email: res?.data?.email,
+            lastLoginAt: res?.data?.lastLoginAt,
+            isSocialLogin: res?.data?.isSocialLogin,
+            profile: null,
           };
           if (rememberMe) {
             await AsyncStorage.setItem('isUserLoggedIn', 'true');
@@ -132,14 +132,13 @@ export const LoginScreen: React.FC = () => {
           }
           dispatch(setUser(user));
           await AsyncStorage.setItem('userDetails', JSON.stringify(user));
-          ToastAndroid.show('Login successful!', ToastAndroid.SHORT);
-          navigation.replace('Home');
+          setShowSuccessPopup(true);
         } else {
           setLoading(false);
           ToastAndroid.show('Login failed!', ToastAndroid.SHORT);
         }
-
-        setShowSuccessPopup(true);
+      } else {
+        setLoading(false);
       }
     } catch (error) {
       setLoading(false);
