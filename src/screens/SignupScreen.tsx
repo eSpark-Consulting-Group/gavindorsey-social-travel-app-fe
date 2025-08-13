@@ -7,14 +7,18 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  Alert,
   ScrollView,
+  ActivityIndicator,
   ToastAndroid,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useDispatch } from 'react-redux';
 
 import { RootStackNavigationProp } from '../navigation/navigation';
 import { ArrowBack, PasswordHide, PasswordShow } from '../assets';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setUser } from '../redux/slices/authSlice';
+import { signup } from '../services/authService';
+import CustomInput from '../components/CustomInput';
 
 export const SignupScreen: React.FC = () => {
   const navigation = useNavigation<RootStackNavigationProp<'Signup'>>();
@@ -25,34 +29,137 @@ export const SignupScreen: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const dispatch = useDispatch();
+  const [errors, setErrors] = useState<{ firstName?:string, lastName?:string, email?: string; password?: string }>(
+    {},
+  );
+
+ const handleEmailChange = (text: string) => {
+    setEmail(text);
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      if (text && text.includes('@')) {
+        delete newErrors.email;
+      }
+      return newErrors;
+    });
+  };
+
+  const handlePasswordChange = (text: string) => {
+    setPassword(text);
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      if (text) {
+        delete newErrors.password;
+      }
+      return newErrors;
+    });
+  };
+  const handleFirstNameChange = (text: string) => {
+    setPassword(text);
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      if (text) {
+        delete newErrors.firstName;
+      }
+      return newErrors;
+    });
+  };
+  const handleLastNameChange = (text: string) => {
+    setPassword(text);
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      if (text) {
+        delete newErrors.lastName;
+      }
+      return newErrors;
+    });
+  };
 
   const handleSignup = async () => {
-    if (!firstName || !lastName || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+    setErrors({});
+
+    const newErrors: {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      password?: string;
+      confirmPassword?: string;
+    } = {};
+
+    if (!firstName) {
+      newErrors.firstName = "Can't be empty";
+    }
+    if (!lastName) {
+      newErrors.lastName = "Can't be empty";
+    }
+
+    if (!email) {
+      newErrors.email = "Can't be empty";
+    } else if (!email.includes('@')) {
+      newErrors.email = 'Invalid email format';
+    }
+
+    const passwordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
+    if (!password) {
+      newErrors.password = 'At least 8 characters';
+    } else if (!passwordRegex.test(password)) {
+      newErrors.password =
+        'Password must contain at least one uppercase letter, one lowercase letter, one number and one special character';
+    }
+
+    if (!confirmPassword) {
+      newErrors.confirmPassword = 'At least 8 characters';
+    } else if (password !== confirmPassword) {
+      newErrors.confirmPassword = "Passwords don't match";
+    }
+
+     if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
+
     try {
-      const usersStr = await AsyncStorage.getItem('users');
-      let users = usersStr ? JSON.parse(usersStr) : [];
-      const userExists = users.some((u: any) => u.email === email);
-      if (userExists) {
-        Alert.alert('Error', 'User already exists with this email');
-        return;
+      setLoading(true);
+      const res = await signup({
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        password,
+      });
+
+      console.log('res', res);
+
+      if (res?.success) {
+        setLoading(false);
+        console.log('res', res);
+        await AsyncStorage.setItem('accessToken', res?.data?.token);
+        const user = {
+          userID: res?.data?.user_id,
+          firstName: res?.data?.first_name,
+          lastName: res?.data?.last_name,
+          email: res?.data?.email,
+          lastLoginAt: res?.data?.lastLoginAt,
+          isSocialLogin: res?.data?.isSocialLogin,
+          profile: null,
+        };
+        dispatch(setUser(user));
+        await AsyncStorage.setItem('userDetails', JSON.stringify(user));
+        ToastAndroid.show('Account created successfully!', ToastAndroid.SHORT);
+        navigation.replace('Home');
+      } else {
+        setLoading(false);
+        ToastAndroid.show(
+          'Signup failed. Please try again.',
+          ToastAndroid.SHORT,
+        );
       }
-      users.push({ firstName, lastName, email, password });
-      const user = users.find(
-        (u: any) => u.email === email && u.password === password,
-      );
-      await AsyncStorage.setItem('users', JSON.stringify(users));
-      await AsyncStorage.setItem('loggedInUser', JSON.stringify(user));
-      ToastAndroid.show('Account created successfully!', ToastAndroid.SHORT);
-      navigation.replace('Home');
-    } catch (e) {
-      Alert.alert('Error', 'Failed to sign up. Please try again.');
+    } catch (error) {
+      setLoading(false);
+      ToastAndroid.show('Signup failed. Please try again.', ToastAndroid.SHORT);
+      console.error('Signup error:', error);
     }
   };
 
@@ -80,84 +187,81 @@ export const SignupScreen: React.FC = () => {
             </Text>
           </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>First Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your First Name"
-              placeholderTextColor="#999"
+            <CustomInput
+              label="First Name"
+              placeholder="Enter your first name"
               value={firstName}
-              onChangeText={setFirstName}
+              onChangeText={handleFirstNameChange}
+              keyboardType="name-phone-pad"
+              autoCapitalize="none"
+              error={errors.firstName}
+              hasError={!!errors.firstName}
             />
-          </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Last Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your Name"
-              placeholderTextColor="#999"
+            <CustomInput
+              label="Last Name"
+              placeholder="Enter your last name"
               value={lastName}
-              onChangeText={setLastName}
+              onChangeText={handleLastNameChange}
+              keyboardType="name-phone-pad"
+              autoCapitalize="none"
+              error={errors.lastName}
+              hasError={!!errors.lastName}
             />
-          </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>E-mail</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              placeholderTextColor="#999"
+            <CustomInput
+              label="Email address"
+              placeholder="Enter Email address"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={handleEmailChange}
               keyboardType="email-address"
               autoCapitalize="none"
+              error={errors.email}
+              hasError={!!errors.email}
             />
-          </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.passwordInputContainer}>
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Enter your Password"
-                placeholderTextColor="#999"
+              <CustomInput
+                label="Password"
+                placeholder="Enter your password"
                 value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
+                onChangeText={handlePasswordChange}
+                secureTextEntry={true}
+                error={errors.password}
+                hasError={!!errors.password}
+                showPassword={showPassword}
+                onTogglePassword={() => setShowPassword(!showPassword)}
               />
-              <TouchableOpacity
-                style={styles.eyeIcon}
-                onPress={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? <PasswordHide /> : <PasswordShow />}
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Confirm Password</Text>
-            <View style={styles.passwordInputContainer}>
-              <TextInput
-                style={styles.passwordInput}
+              <CustomInput
+                label="Confirm Password"
                 placeholder="Enter Confirm Password"
-                placeholderTextColor="#999"
-                value={confirmPassword}
+                value={password}
                 onChangeText={setConfirmPassword}
-                secureTextEntry={!showConfirmPassword}
+                secureTextEntry={true}
+                error={errors.password}
+                hasError={!!errors.password}
+                showPassword={showConfirmPassword}
+                onTogglePassword={() => setShowConfirmPassword(!showConfirmPassword)}
               />
-              <TouchableOpacity
-                style={styles.eyeIcon}
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-              >
-                {showConfirmPassword ? <PasswordHide /> : <PasswordShow />}
-              </TouchableOpacity>
-            </View>
-          </View>
 
-          <TouchableOpacity style={styles.primaryButton} onPress={handleSignup}>
-            <Text style={styles.primaryButtonText}>Sign Up</Text>
-          </TouchableOpacity>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            {loading ? (
+              <ActivityIndicator color="#4A90E2" size="large" />
+            ) : (
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={handleSignup}
+              >
+                <Text style={styles.primaryButtonText}>Sign Up</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -281,6 +385,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     backgroundColor: '#7CB342',
     borderRadius: 8,
+    flex: 1,
     paddingVertical: 15,
     alignItems: 'center',
     marginBottom: 15,
