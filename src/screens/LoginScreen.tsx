@@ -22,13 +22,14 @@ import {
   PasswordHide,
   PasswordShow,
 } from '../assets';
-import { LoginSuccessPopup } from './LoginSuccessPopup';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useDispatch } from 'react-redux';
+
+import { LoginSuccessPopup } from './LoginSuccessPopup';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { login, signup, socialLogin } from '../services/authService';
-import { useDispatch } from 'react-redux';
 import { setIsLoggedIn, setUser } from '../redux/slices/authSlice';
-import { showToast } from '../utils/showToast';
+import CustomInput from '../components/CustomInput';
 
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<RootStackNavigationProp<'Login'>>();
@@ -39,15 +40,48 @@ export const LoginScreen: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {},
+  );
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      if (text && text.includes('@')) {
+        delete newErrors.email;
+      }
+      return newErrors;
+    });
+  };
+
+  const handlePasswordChange = (text: string) => {
+    setPassword(text);
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      if (text) {
+        delete newErrors.password;
+      }
+      return newErrors;
+    });
+  };
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      ToastAndroid.show(
-        `Email or Password Can't be empty.`,
-        ToastAndroid.SHORT,
-      );
+    const newErrors: { email?: string; password?: string } = {};
+
+    if (!email) {
+      newErrors.email = "Can't be empty";
     } else if (!email.includes('@')) {
-      ToastAndroid.show(`Invalid email format.`, ToastAndroid.SHORT);
+      newErrors.email = 'Invalid email format';
+    }
+
+    if (!password) {
+      newErrors.password = 'Password is required';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
     }
 
     try {
@@ -175,38 +209,28 @@ export const LoginScreen: React.FC = () => {
         </View>
 
         <View style={styles.formContainer}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email address"
-              placeholderTextColor="#999"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
+          <CustomInput
+            label="Email address"
+            placeholder="Enter your email"
+            value={email}
+            onChangeText={handleEmailChange}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            error={errors.email}
+            hasError={!!errors.email}
+          />
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.passwordInputContainer}>
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Enter your email password"
-                placeholderTextColor="#999"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeIcon}
-              >
-                {showPassword ? <PasswordHide /> : <PasswordShow />}
-              </TouchableOpacity>
-            </View>
-          </View>
+          <CustomInput
+            label="Password"
+            placeholder="Enter your password"
+            value={password}
+            onChangeText={handlePasswordChange}
+            secureTextEntry={true}
+            error={errors.password}
+            hasError={!!errors.password}
+            showPassword={showPassword}
+            onTogglePassword={() => setShowPassword(!showPassword)}
+          />
 
           <View style={styles.optionsRow}>
             <TouchableOpacity
