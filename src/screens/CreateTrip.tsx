@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   Alert,
   ToastAndroid,
+  ActivityIndicator,
 } from 'react-native';
 import DatePicker from 'react-native-date-picker';
 import {
@@ -26,12 +27,14 @@ import {
   CalendarIcon,
   CameraIcon,
 } from '../assets';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { RootStackNavigationProp } from 'src/navigation/navigation';
+
+import { RootStackNavigationProp } from '../navigation/navigation';
+import { createTrip, updateTrip } from '../services/tripsService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Note {
-  id: string;
+  id: number;
   text: string;
   cost: number;
 }
@@ -53,60 +56,111 @@ export const CreateTrip: React.FC = () => {
   const [budget, setBudget] = useState<string>('');
   const [locationName, setLocationName] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<number>(1);
-  const [notes, setNotes] = useState<Note[]>([{ id: '1', text: '', cost: 0 }]);
+  const [notes, setNotes] = useState<Note[]>([{ id: 1, text: '', cost: 0 }]);
   const [totalDays, setTotalDays] = useState<number>(1);
+  const [loading, setLoading] = useState(false);
+  const [selectedCurrency, setSelectedCurrency] = useState('USD');
 
   const route = useRoute();
   const editTrip = route.params && (route.params as any).trip;
 
   useEffect(() => {
+    console.log('EditTrip:', editTrip);
     if (editTrip) {
-      setLocationName(editTrip.tripLocation || '');
-      setSelectedImage(editTrip.image || '');
+      setLocationName(editTrip.location || '');
+      setSelectedImage(editTrip.imageUrl || '');
       setStartDate(
         editTrip.startDate ? new Date(editTrip.startDate) : undefined,
       );
       setEndDate(editTrip.endDate ? new Date(editTrip.endDate) : undefined);
       setBudget(editTrip.budget || '');
-      
-      // Debug log
-      console.log('EditTrip notes:', editTrip.notes);
-      
-      // Ensure notes array is properly structured
-      if (editTrip.notes && editTrip.notes.length > 0) {
-        const formattedNotes = editTrip.notes.map((note: any, index: number) => ({
-          id: (index + 1).toString(),
-          text: note.text || '',
-          cost: parseFloat(note.cost) || 0,
-        }));
+
+      if (editTrip.days && editTrip.days.length > 0) {
+        const formattedNotes = editTrip.days.map(
+          (note: any, index: number) => ({
+            id: note.dayNumber,
+            text: note.notes || '',
+            cost: parseFloat(note.cost) || 0,
+          }),
+        );
+        setTotalDays(editTrip.days.length || 1);
         setNotes(formattedNotes);
       } else {
-        setNotes([{ id: '1', text: '', cost: 0 }]);
+        setNotes([{ id: 1, text: '', cost: 0 }]);
+        setTotalDays(1);
       }
-      
       setSelectedDay(1);
-      setTotalDays(editTrip.totalDays || 1);
     } else {
       setLocationName('');
       setSelectedImage('');
       setStartDate(undefined);
       setEndDate(undefined);
       setBudget('');
-      setNotes([{ id: '1', text: '', cost: 0 }]);
+      setNotes([{ id: 1, text: '', cost: 0 }]);
       setTotalDays(1);
       setSelectedDay(1);
     }
   }, [editTrip]);
 
   useEffect(() => {
+    applyConversion();
+  }, [selectedCurrency]);
+
+  useEffect(() => {
     if (totalDays > notes.length) {
       const newNotes = [...notes];
       for (let i = notes.length; i < totalDays; i++) {
-        newNotes.push({ id: (i + 1).toString(), text: '', cost: 0 });
+        newNotes.push({ id: i + 1, text: '', cost: 0 });
       }
       setNotes(newNotes);
     }
   }, [totalDays, notes.length]);
+
+  useEffect(() => {
+    loadSelectedCurrency();
+  }, []);
+
+  const currencies = [
+    { code: 'USD', symbol: '$', name: 'US Dollar' },
+    { code: 'EUR', symbol: '€', name: 'Euro' },
+  ];
+
+  const applyConversion = async () => {
+    const savedCurrency = await AsyncStorage.getItem('selectedCurrency');
+    console.log('Idha aya hai');
+    if (savedCurrency && savedCurrency !== selectedCurrency) {
+      setBudget(prev => {
+        const num = parseFloat(prev) || 0;
+        return convertCurrency(savedCurrency, selectedCurrency, num).toString();
+      });
+
+      setNotes(prevNotes =>
+        prevNotes.map(note => ({
+          ...note,
+          cost: convertCurrency(savedCurrency, selectedCurrency, note.cost),
+        })),
+      );
+
+      await AsyncStorage.setItem('selectedCurrency', selectedCurrency);
+    }
+  };
+
+  const convertCurrency = (
+    from: string,
+    to: string,
+    amount: number,
+  ): number => {
+    if (from === to) return amount;
+
+     const rates: Record<string, Record<string, number>> = {
+      EUR: { USD: 1 },
+      USD: { EUR: 0.86 },
+    };
+
+    const rate = rates[from]?.[to] ?? 1;
+    console.log('Currency Rate ', rate);
+    return parseFloat((amount * rate).toFixed(2));
+  };
 
   const formatDate = (date?: Date): string => {
     if (!date) return '';
@@ -197,11 +251,25 @@ export const CreateTrip: React.FC = () => {
     </TouchableOpacity>
   );
 
+  const loadSelectedCurrency = async () => {
+    try {
+      const savedCurrency = await AsyncStorage.getItem('selectedCurrency');
+      if (savedCurrency) {
+        setSelectedCurrency(savedCurrency);
+      } else {
+        // Default to USD
+        setSelectedCurrency('USD');
+      }
+    } catch (error) {
+      console.log('Error loading currency:', error);
+      setSelectedCurrency('USD');
+    }
+  };
+
   const handleNoteTextChange = (text: string) => {
     const updated = [...notes];
-    // Ensure the array has enough elements
     while (updated.length < selectedDay) {
-      updated.push({ id: updated.length + 1 + '', text: '', cost: 0 });
+      updated.push({ id: updated.length + 1, text: '', cost: 0 });
     }
     updated[selectedDay - 1] = { ...updated[selectedDay - 1], text };
     setNotes(updated);
@@ -209,12 +277,19 @@ export const CreateTrip: React.FC = () => {
 
   const handleCostChange = (value: string) => {
     const updated = [...notes];
-    // Ensure the array has enough elements
     while (updated.length < selectedDay) {
-      updated.push({ id: updated.length + 1 + '', text: '', cost: 0 });
+      updated.push({ id: updated.length + 1, text: '', cost: 0 });
     }
-    updated[selectedDay - 1] = { ...updated[selectedDay - 1], cost: parseFloat(value) || 0 };
+    updated[selectedDay - 1] = {
+      ...updated[selectedDay - 1],
+      cost: parseFloat(value) || 0,
+    };
     setNotes(updated);
+  };
+
+  const getCurrencySymbol = (currencyCode: string) => {
+    const currency = currencies.find(c => c.code === currencyCode);
+    return currency?.symbol || '$';
   };
 
   const saveTrip = async () => {
@@ -241,61 +316,57 @@ export const CreateTrip: React.FC = () => {
       Alert.alert('Missing Info', 'Please enter a valid budget.');
       return;
     }
-
     if (notes.some(note => !note.text.trim())) {
-      Alert.alert('Missing Info', 'Please fill in notes for all days.');
+      Alert.alert('Missing Info', 'Please enter notes for each day.');
       return;
     }
-
     try {
-      const userStr = await AsyncStorage.getItem('loggedInUser');
-      if (!userStr) {
-        Alert.alert('Error', 'You must be logged in to create a trip.');
-        return;
-      }
+      setLoading(true);
+      console.log('Saving trip with data:');
+      const payload: any = {
+        start_date: startDate.toISOString().split('T')[0],
+        end_date: endDate.toISOString().split('T')[0],
+        location: locationName,
+        budget: parseFloat(budget),
+        total_cost: getTotalCost(),
+        days: notes.map((note, index) => ({
+          day_number: note.id,
+          notes: note.text,
+          cost: note.cost,
+        })),
+      };
+      payload.image = {
+        uri: selectedImage,
+        name: `trip_${Date.now()}.jpg`,
+        type: 'image/jpeg',
+      };
 
-      const user = JSON.parse(userStr);
-      const tripsStr = await AsyncStorage.getItem('trips');
-      let trips = tripsStr ? JSON.parse(tripsStr) : {};
-      let userTrips = trips[user.email] || [];
-
+      console.log('selectedImage', selectedImage);
+      let res;
       if (editTrip) {
-        userTrips = userTrips.map((t: any) =>
-          t.id === editTrip.id
-            ? {
-                ...t,
-                image: selectedImage,
-                startDate,
-                endDate,
-                tripLocation: locationName,
-                budget,
-                notes,
-                totalDays,
-              }
-            : t,
-        );
+        console.log('Edit new trip with payload:', payload);
+        res = await updateTrip({ ...payload, trip_id: editTrip.id });
       } else {
-        const newTrip = {
-          id: Date.now().toString(),
-          image: selectedImage,
-          startDate,
-          endDate,
-          tripLocation: locationName,
-          budget,
-          notes,
-          totalDays,
-        };
-        userTrips.push(newTrip);
+        console.log('Creating new trip with payload:', payload);
+        res = await createTrip(payload);
       }
-
-      trips[user.email] = userTrips;
-      await AsyncStorage.setItem('trips', JSON.stringify(trips));
-      ToastAndroid.show(
-        editTrip ? 'Trip updated successfully!' : 'Trip created successfully!',
-        ToastAndroid.SHORT,
-      );
-      navigation.goBack();
+      setLoading(false);
+      if (res.success && res.data) {
+        ToastAndroid.show(
+          editTrip
+            ? 'Trip updated successfully!'
+            : 'Trip created successfully!',
+          ToastAndroid.SHORT,
+        );
+        navigation.goBack();
+      } else {
+        Alert.alert(
+          'Error',
+          res.error || 'Failed to save trip. Please try again.',
+        );
+      }
     } catch (e) {
+      setLoading(false);
       Alert.alert('Error', 'Failed to save trip. Please try again.');
     }
   };
@@ -304,10 +375,20 @@ export const CreateTrip: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('Home');
+            }
+          }}
+        >
           <ArrowBack />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Trip</Text>
+        <Text style={styles.headerTitle}>
+          {editTrip ? 'Edit Trip' : 'Create Trip'}
+        </Text>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -382,21 +463,22 @@ export const CreateTrip: React.FC = () => {
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Trip Location</Text>
-          <View style={styles.inputContainer}>
-            <TextInput
-              placeholder="Enter Trip Location Here"
-              placeholderTextColor="#9CA3AF"
-              value={locationName}
-              onChangeText={setLocationName}
-            />
-          </View>
+          <TextInput
+            style={styles.inputContainer}
+            placeholder="Enter Trip Location Here"
+            placeholderTextColor="#9CA3AF"
+            value={locationName}
+            onChangeText={setLocationName}
+          />
         </View>
         <View></View>
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Trip Budget</Text>
           <View style={styles.inputContainer}>
-            <Text style={styles.dollarSign}>$</Text>
+            <Text style={styles.dollarSign}>
+              {getCurrencySymbol(selectedCurrency)}
+            </Text>
             <TextInput
               style={styles.input}
               value={budget}
@@ -437,7 +519,9 @@ export const CreateTrip: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Today Cost</Text>
           <View style={styles.costInputContainer}>
-            <Text style={styles.dollarSignGreen}>$</Text>
+            <Text style={styles.dollarSignGreen}>
+              {getCurrencySymbol(selectedCurrency)}
+            </Text>
             <TextInput
               style={styles.input}
               value={(notes[selectedDay - 1]?.cost || 0).toString()}
@@ -453,15 +537,22 @@ export const CreateTrip: React.FC = () => {
           <View style={styles.remainingBudgetRow}>
             <Text style={styles.remainingBudgetLabel}>Remaining Budget : </Text>
             <Text style={styles.remainingBudgetAmount}>
-              ${getRemainingBudget().toLocaleString()}
+              {getCurrencySymbol(selectedCurrency)}
+              {getRemainingBudget().toLocaleString()}
             </Text>
           </View>
         </View>
 
         <View style={{ marginBottom: 20 }}>
-          <TouchableOpacity style={styles.primaryButton} onPress={saveTrip}>
-            <Text style={styles.primaryButtonText}>Save Trip</Text>
-          </TouchableOpacity>
+          {loading ? (
+            <ActivityIndicator size="large" color="#4A90E2" />
+          ) : (
+            <TouchableOpacity style={styles.primaryButton} onPress={saveTrip}>
+              <Text style={styles.primaryButtonText}>
+                {editTrip ? 'Edit Trip' : 'Save Trip'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
