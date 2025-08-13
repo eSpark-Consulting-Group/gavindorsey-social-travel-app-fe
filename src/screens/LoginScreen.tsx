@@ -11,6 +11,7 @@ import {
   ScrollView,
   BackHandler,
   ToastAndroid,
+  ActivityIndicator,
 } from 'react-native';
 
 import { RootStackNavigationProp } from '../navigation/navigation';
@@ -21,9 +22,14 @@ import {
   PasswordHide,
   PasswordShow,
 } from '../assets';
-import { LoginSuccessPopup } from './LoginSuccessPopup';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useDispatch } from 'react-redux';
+
+import { LoginSuccessPopup } from './LoginSuccessPopup';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { login, signup, socialLogin } from '../services/authService';
+import { setIsLoggedIn, setUser } from '../redux/slices/authSlice';
+import CustomInput from '../components/CustomInput';
 
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<RootStackNavigationProp<'Login'>>();
@@ -32,39 +38,93 @@ export const LoginScreen: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const dispatch = useDispatch();
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {},
+  );
 
-  useEffect(() => {
-    const checkLoggedIn = async () => {
-      const userStr = await AsyncStorage.getItem('isUserLoggedIn');
-      if (userStr === 'true') {
-        navigation.replace('Home');
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      if (text && text.includes('@')) {
+        delete newErrors.email;
       }
-    };
-    checkLoggedIn();
-  }, []);
+      return newErrors;
+    });
+  };
+
+  const handlePasswordChange = (text: string) => {
+    setPassword(text);
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      if (text) {
+        delete newErrors.password;
+      }
+      return newErrors;
+    });
+  };
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+    const newErrors: { email?: string; password?: string } = {};
+
+    if (!email) {
+      newErrors.email = "Can't be empty";
+    } else if (!email.includes('@')) {
+      newErrors.email = 'Invalid email format';
+    }
+
+    if (!password) {
+      newErrors.password = 'Password is required';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
+
     try {
-      const usersStr = await AsyncStorage.getItem('users');
-      const users = usersStr ? JSON.parse(usersStr) : [];
-      const user = users.find(
-        (u: any) => u.email === email && u.password === password,
-      );
-      if (!user) {
-        Alert.alert('Error', 'Invalid email or password');
-        return;
+      setLoading(true);
+      const res = await login({
+        email: email,
+        password: password,
+      });
+      console.log('res', res);
+
+      if (res?.success) {
+        setLoading(false);
+        console.log('res', res);
+        dispatch(setUser(res.data));
+        await AsyncStorage.setItem('accessToken', res?.data?.token);
+        const user = {
+          userID: res?.data?.user_id,
+          firstName: res?.data?.first_name,
+          lastName: res?.data?.last_name,
+          email: res?.data?.email,
+          lastLoginAt: res?.data?.lastLoginAt,
+          isSocialLogin: res?.data?.isSocialLogin,
+          profile: null,
+        };
+        if (rememberMe) {
+          await AsyncStorage.setItem('isUserLoggedIn', 'true');
+          dispatch(setIsLoggedIn(true));
+        }
+        dispatch(setUser(user));
+        await AsyncStorage.setItem('userDetails', JSON.stringify(user));
+        setShowSuccessPopup(true);
+      } else {
+        setLoading(false);
+        console.error('Login failed:', res?.message);
+        ToastAndroid.show(
+          res?.message || 'Login failed. Please try again.',
+          ToastAndroid.SHORT,
+        );
       }
-      if (rememberMe) {
-        await AsyncStorage.setItem('isUserLoggedIn', 'true');
-      }
-      await AsyncStorage.setItem('loggedInUser', JSON.stringify(user));
-      setShowSuccessPopup(true);
-    } catch (e) {
-      Alert.alert('Error', 'Failed to login. Please try again.');
+    } catch (err) {
+      setLoading(false);
+      console.log('Login error:', err);
+      ToastAndroid.show('Login failed. Please try again.', ToastAndroid.SHORT);
     }
   };
 
@@ -75,50 +135,47 @@ export const LoginScreen: React.FC = () => {
 
   const handleGoogleLogin = async () => {
     try {
+      setLoading(true);
       await GoogleSignin.hasPlayServices();
       const response = await GoogleSignin.signIn();
       console.log('Google Sign In Success:', JSON.stringify(response));
 
       if (response.data != null) {
-        const usersStr = await AsyncStorage.getItem('users');
-        let users = usersStr ? JSON.parse(usersStr) : [];
-        const userExists = users.some(
-          (u: any) => u.email === response?.data?.user?.email,
-        );
-        if (userExists) {
-          const usersStr = await AsyncStorage.getItem('users');
-          const users = usersStr ? JSON.parse(usersStr) : [];
-          const user = users.find(
-            (u: any) => u.email === response?.data?.user?.email,
-          );
-          if (!user) {
-            Alert.alert('Error', 'Invalid email or password');
-            return;
-          }
+        const res = await socialLogin({
+          email: response.data?.user.email || '',
+          firstName: response.data?.user.givenName || '',
+          lastName: response.data?.user.familyName || '',
+        });
+        if (res?.success) {
+          setLoading(false);
+          console.log('res', res);
+          dispatch(setUser(res.data));
+          await AsyncStorage.setItem('accessToken', res?.data?.token);
+          const user = {
+            userID: res?.data?.user_id,
+            firstName: res?.data?.first_name,
+            lastName: res?.data?.last_name,
+            email: res?.data?.email,
+            lastLoginAt: res?.data?.lastLoginAt,
+            isSocialLogin: res?.data?.isSocialLogin,
+            profile: null,
+          };
           if (rememberMe) {
             await AsyncStorage.setItem('isUserLoggedIn', 'true');
+            dispatch(setIsLoggedIn(true));
           }
-          console.log('User already exists, logged in:', user);
-          await AsyncStorage.setItem('loggedInUser', JSON.stringify(user));
+          dispatch(setUser(user));
+          await AsyncStorage.setItem('userDetails', JSON.stringify(user));
+          setShowSuccessPopup(true);
         } else {
-          users.push({
-            firstName: response?.data?.user?.givenName || '',
-            lastName: response?.data?.user?.familyName || '',
-            email: response?.data?.user?.email || '',
-            profile: response?.data?.user?.photo || '',
-          });
-          const user = users.find(
-            (u: any) => u.email === response?.data?.user?.email,
-          );
-          await AsyncStorage.setItem('users', JSON.stringify(users));
-          console.log('Neeche user already exists, logged in:', user);
-          await AsyncStorage.setItem('loggedInUser', JSON.stringify(user));
+          setLoading(false);
+          ToastAndroid.show('Login failed!', ToastAndroid.SHORT);
         }
-
-        setShowSuccessPopup(true);
+      } else {
+        setLoading(false);
       }
     } catch (error) {
-      // setLoading(false);
+      setLoading(false);
       if (error instanceof Error) {
         console.error('Detailed error:', error.message);
         ToastAndroid.show(
@@ -152,38 +209,28 @@ export const LoginScreen: React.FC = () => {
         </View>
 
         <View style={styles.formContainer}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email address"
-              placeholderTextColor="#999"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
+          <CustomInput
+            label="Email address"
+            placeholder="Enter your email"
+            value={email}
+            onChangeText={handleEmailChange}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            error={errors.email}
+            hasError={!!errors.email}
+          />
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.passwordInputContainer}>
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Enter your email password"
-                placeholderTextColor="#999"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeIcon}
-              >
-                {showPassword ? <PasswordHide /> : <PasswordShow />}
-              </TouchableOpacity>
-            </View>
-          </View>
+          <CustomInput
+            label="Password"
+            placeholder="Enter your password"
+            value={password}
+            onChangeText={handlePasswordChange}
+            secureTextEntry={true}
+            error={errors.password}
+            hasError={!!errors.password}
+            showPassword={showPassword}
+            onTogglePassword={() => setShowPassword(!showPassword)}
+          />
 
           <View style={styles.optionsRow}>
             <TouchableOpacity
@@ -198,11 +245,16 @@ export const LoginScreen: React.FC = () => {
               <Text style={styles.rememberMeText}>Remember me</Text>
             </TouchableOpacity>
           </View>
-
-          <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
-            <Text style={styles.primaryButtonText}>Continue with Email</Text>
-          </TouchableOpacity>
-
+          {loading ? (
+            <ActivityIndicator size="large" color="#4A90E2" />
+          ) : (
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleLogin}
+            >
+              <Text style={styles.primaryButtonText}>Continue with Email</Text>
+            </TouchableOpacity>
+          )}
           <View style={styles.dividerContainer}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>Or Continue with</Text>
