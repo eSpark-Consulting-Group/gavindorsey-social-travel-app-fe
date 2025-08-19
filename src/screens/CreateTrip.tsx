@@ -32,6 +32,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { RootStackNavigationProp } from '../navigation/navigation';
 import { createTrip, updateTrip } from '../services/tripsService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import MapLocationSelector from '../components/MapLocationSelector';
 
 interface Note {
   id: number;
@@ -60,7 +61,10 @@ export const CreateTrip: React.FC = () => {
   const [totalDays, setTotalDays] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [selectedCurrency, setSelectedCurrency] = useState('USD');
-
+  const [locationCoordinates, setLocationCoordinates] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const route = useRoute();
   const editTrip = route.params && (route.params as any).trip;
 
@@ -152,7 +156,7 @@ export const CreateTrip: React.FC = () => {
   ): number => {
     if (from === to) return amount;
 
-     const rates: Record<string, Record<string, number>> = {
+    const rates: Record<string, Record<string, number>> = {
       EUR: { USD: 1 },
       USD: { EUR: 0.86 },
     };
@@ -391,7 +395,11 @@ export const CreateTrip: React.FC = () => {
         </Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+      >
         <TouchableOpacity
           style={styles.imageContainer}
           onPress={handleImagePicker}
@@ -463,13 +471,16 @@ export const CreateTrip: React.FC = () => {
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Trip Location</Text>
-          <TextInput
-            style={styles.inputContainer}
-            placeholder="Enter Trip Location Here"
-            placeholderTextColor="#9CA3AF"
-            value={locationName}
-            onChangeText={setLocationName}
-          />
+          <View style={styles.mapSectionContainer}>
+            <MapLocationSelector
+              onLocationSelect={(location, coordinates) => {
+                setLocationName(location);
+                setLocationCoordinates(coordinates || null);
+                console.log('Selected location:', location, coordinates);
+              }}
+              initialValue={locationName}
+            />
+          </View>
         </View>
         <View></View>
 
@@ -767,6 +778,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#10B981',
     marginRight: 8,
+  },
+  mapSectionContainer: {
+    height: 130,
   },
   costValue: {
     fontSize: 18,

@@ -106,10 +106,8 @@ export const LoginScreen: React.FC = () => {
           isSocialLogin: res?.data?.isSocialLogin,
           profile: null,
         };
-        if (rememberMe) {
-          await AsyncStorage.setItem('isUserLoggedIn', 'true');
-          dispatch(setIsLoggedIn(true));
-        }
+        await AsyncStorage.setItem('isUserLoggedIn', 'true');
+        dispatch(setIsLoggedIn(true));
         dispatch(setUser(user));
         await AsyncStorage.setItem('userDetails', JSON.stringify(user));
         setShowSuccessPopup(true);
@@ -160,10 +158,8 @@ export const LoginScreen: React.FC = () => {
             isSocialLogin: res?.data?.isSocialLogin,
             profile: null,
           };
-          if (rememberMe) {
-            await AsyncStorage.setItem('isUserLoggedIn', 'true');
-            dispatch(setIsLoggedIn(true));
-          }
+          await AsyncStorage.setItem('isUserLoggedIn', 'true');
+          dispatch(setIsLoggedIn(true));
           dispatch(setUser(user));
           await AsyncStorage.setItem('userDetails', JSON.stringify(user));
           setShowSuccessPopup(true);

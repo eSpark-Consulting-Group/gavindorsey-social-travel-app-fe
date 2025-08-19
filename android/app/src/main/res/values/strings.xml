@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">GavinDorsey</string>
+      <string name="map_api_key" translatable="false">AIzaSyBieHxRQPlXufh9CnWw0a3s5LOhiZd69zA</string>
 </resources>

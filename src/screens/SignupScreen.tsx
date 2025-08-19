@@ -16,7 +16,7 @@ import { useDispatch } from 'react-redux';
 
 import { RootStackNavigationProp } from '../navigation/navigation';
 import { ArrowBack, PasswordHide, PasswordShow } from '../assets';
-import { setUser } from '../redux/slices/authSlice';
+import { setIsLoggedIn, setUser } from '../redux/slices/authSlice';
 import { signup } from '../services/authService';
 import CustomInput from '../components/CustomInput';
 
@@ -31,7 +31,7 @@ export const SignupScreen: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
-  const [errors, setErrors] = useState<{ firstName?:string, lastName?:string, email?: string; password?: string }>(
+  const [errors, setErrors] = useState<{ firstName?:string, lastName?:string, email?: string; password?: string; confirmPassword?:string }>(
     {},
   );
 
@@ -56,8 +56,18 @@ export const SignupScreen: React.FC = () => {
       return newErrors;
     });
   };
+  const handleConfirmPassword = (text: string) => {
+    setConfirmPassword(text);
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      if (text) {
+        delete newErrors.confirmPassword;
+      }
+      return newErrors;
+    });
+  };
   const handleFirstNameChange = (text: string) => {
-    setPassword(text);
+    setFirstName(text);
     setErrors(prev => {
       const newErrors = { ...prev };
       if (text) {
@@ -67,7 +77,7 @@ export const SignupScreen: React.FC = () => {
     });
   };
   const handleLastNameChange = (text: string) => {
-    setPassword(text);
+    setLastName(text);
     setErrors(prev => {
       const newErrors = { ...prev };
       if (text) {
@@ -145,6 +155,8 @@ export const SignupScreen: React.FC = () => {
           isSocialLogin: res?.data?.isSocialLogin,
           profile: null,
         };
+         await AsyncStorage.setItem('isUserLoggedIn', 'true');
+        dispatch(setIsLoggedIn(true));
         dispatch(setUser(user));
         await AsyncStorage.setItem('userDetails', JSON.stringify(user));
         ToastAndroid.show('Account created successfully!', ToastAndroid.SHORT);
@@ -234,11 +246,11 @@ export const SignupScreen: React.FC = () => {
               <CustomInput
                 label="Confirm Password"
                 placeholder="Enter Confirm Password"
-                value={password}
-                onChangeText={setConfirmPassword}
+                value={confirmPassword}
+                onChangeText={handleConfirmPassword}
                 secureTextEntry={true}
-                error={errors.password}
-                hasError={!!errors.password}
+                error={errors.confirmPassword}
+                hasError={!!errors.confirmPassword}
                 showPassword={showConfirmPassword}
                 onTogglePassword={() => setShowConfirmPassword(!showConfirmPassword)}
               />

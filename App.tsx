@@ -4,7 +4,10 @@ import RootNavigation from './src/navigation';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { store } from './src/redux/store';
 import ToastConfig  from './src/utils/toastConfig';
-
+import { LogBox } from 'react-native';
+LogBox.ignoreLogs([
+  'Mapbox [error] ViewTagResolver | view: null found with tag',
+]);
 function App() {
 
   return (
